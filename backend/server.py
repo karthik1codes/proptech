@@ -1120,8 +1120,7 @@ async def whatsapp_webhook_api(
     From: str = Form(default="")
 ):
     """
-    Twilio WhatsApp webhook endpoint.
-    Receives incoming WhatsApp messages and responds with property analytics.
+    Twilio WhatsApp webhook endpoint (api-prefixed for external access).
     No authentication required for webhook.
     
     Workflow:
@@ -1130,105 +1129,9 @@ async def whatsapp_webhook_api(
     3. Call analytics engine
     4. Respond with formatted result
     """
-    try:
-        # Parse incoming message
-        message_body = Body.lower().strip()
-        sender_phone = From.replace("whatsapp:", "")
-        
-        logger.info(f"WhatsApp message from {sender_phone}: {message_body}")
-        
-        # Get all properties for matching
-        properties = property_store.get_all()
-        
-        # Try to match property name
-        matched_property = None
-        for prop in properties:
-            prop_name_lower = prop["name"].lower()
-            if prop_name_lower in message_body or any(word in message_body for word in prop_name_lower.split()):
-                matched_property = prop
-                break
-        
-        # Generate response based on match
-        if matched_property:
-            # Get analytics for matched property
-            digital_twin = matched_property.get("digital_twin", {})
-            daily_data = digital_twin.get("daily_history", [])
-            recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
-            
-            financials = IntelligenceEngine.calculate_financials(matched_property, recent_occupancy)
-            efficiency_score = IntelligenceEngine.calculate_efficiency_score(matched_property)
-            utilization = IntelligenceEngine.classify_utilization(recent_occupancy)
-            recommendations = IntelligenceEngine.generate_recommendations(matched_property)
-            
-            # Format response
-            response_text = f"""📊 *{matched_property['name']} Analytics*
-
-📍 *Location:* {matched_property['location']}
-🏢 *Type:* {matched_property['type']}
-
-📈 *Key Metrics:*
-• Occupancy: {round(recent_occupancy * 100, 1)}%
-• Utilization: {utilization}
-• Efficiency Score: {efficiency_score}%
-
-💰 *Financials:*
-• Revenue: {whatsapp_service.format_currency_inr(financials['revenue'])}
-• Profit: {whatsapp_service.format_currency_inr(financials['profit'])}
-• Energy Cost: {whatsapp_service.format_currency_inr(financials['energy_cost'])}
-
-"""
-            if recommendations:
-                top_rec = recommendations[0]
-                response_text += f"""💡 *Top Recommendation:*
-{top_rec['title']}
-Impact: {whatsapp_service.format_currency_inr(top_rec['financial_impact'])}/month"""
-        
-        elif "list" in message_body or "properties" in message_body or "all" in message_body:
-            # List all properties
-            response_text = "📋 *Property Portfolio:*\n\n"
-            for prop in properties:
-                digital_twin = prop.get("digital_twin", {})
-                daily_data = digital_twin.get("daily_history", [])
-                recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
-                
-                response_text += f"• *{prop['name']}* ({prop['location']})\n"
-                response_text += f"  Occupancy: {round(recent_occupancy * 100, 1)}%\n\n"
-            
-            response_text += "\nReply with a property name for detailed analytics."
-        
-        elif "help" in message_body:
-            response_text = """🤖 *PropTech Copilot Help*
-
-Available commands:
-• *list* - Show all properties
-• *[property name]* - Get property analytics
-• *help* - Show this message
-
-Example: "Horizon Tech Park" """
-        
-        else:
-            # Default response
-            response_text = """👋 Welcome to PropTech Copilot!
-
-I can help you with property analytics.
-
-📋 Available properties:
-"""
-            for prop in properties:
-                response_text += f"• {prop['name']}\n"
-            
-            response_text += "\nReply with a property name or 'help' for commands."
-        
-        # Return TwiML response
-        twiml_response = whatsapp_service.create_webhook_response(response_text)
-        return PlainTextResponse(content=twiml_response, media_type="application/xml")
-        
-    except Exception as e:
-        logger.error(f"WhatsApp webhook error: {e}")
-        error_response = whatsapp_service.create_webhook_response(
-            "Sorry, an error occurred. Please try again."
-        )
-        return PlainTextResponse(content=error_response, media_type="application/xml")
+    response_text = await _handle_whatsapp_webhook(Body, From)
+    twiml_response = whatsapp_service.create_webhook_response(response_text)
+    return PlainTextResponse(content=twiml_response, media_type="application/xml")
 
 
 @api_router.post("/whatsapp/send")
