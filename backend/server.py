@@ -1047,13 +1047,16 @@ async def _handle_whatsapp_webhook(body: str, from_number: str):
             intent=CommandIntent.UNKNOWN, raw_message=original_body
         )
         
-        # Commands that don't require linking
+        # Commands that don't require linking (read-only operations)
         no_auth_commands = {
             CommandIntent.HELP, CommandIntent.LIST_PROPERTIES, 
-            CommandIntent.STATUS, CommandIntent.UNKNOWN
+            CommandIntent.STATUS, CommandIntent.UNKNOWN,
+            CommandIntent.PROPERTY_DETAILS, CommandIntent.CHECK_ALERTS,
+            CommandIntent.GET_RECOMMENDATIONS, CommandIntent.SUBSCRIBE_ALERTS,
+            CommandIntent.UNSUBSCRIBE_ALERTS
         }
         
-        # Check if command requires authentication
+        # Check if command requires authentication (write operations)
         if parsed.intent not in no_auth_commands and not user_id:
             response_text = """🔒 *Account Not Linked*
 
