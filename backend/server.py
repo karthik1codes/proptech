@@ -1123,27 +1123,24 @@ async def _handle_whatsapp_webhook(body: str, from_number: str):
             response_text = templates.help_menu()
             metadata = {"command": "help"}
         
-        elif "subscribe" in message_body:
-            # Subscribe to alerts
+        elif "unsubscribe" in message_body:
+            # Unsubscribe from alerts - check before "subscribe" since "unsubscribe" contains "subscribe"
             from services.alert_scheduler import alert_scheduler
             if alert_scheduler:
-                result = await alert_scheduler.subscribe(sender_phone)
+                result = await alert_scheduler.unsubscribe(sender_phone)
                 if result["success"]:
-                    response_text = """✅ *Subscribed to Alerts*
+                    response_text = """✅ *Unsubscribed from Alerts*
 
-You will now receive automated alerts for:
-• High Occupancy (>90%)
-• Low Utilization (<40%)
-• Energy Spikes (>15%)
+You will no longer receive automated property alerts.
 
-_Reply 'unsubscribe' to stop alerts._"""
+_Reply 'subscribe' to re-enable alerts._"""
                 else:
-                    response_text = f"❌ Failed to subscribe: {result.get('error', 'Unknown error')}"
+                    response_text = "❌ You are not currently subscribed to alerts."
             else:
                 response_text = "⚠️ Alert service is not available."
-            metadata = {"command": "subscribe"}
+            metadata = {"command": "unsubscribe"}
         
-        elif "unsubscribe" in message_body:
+        elif "subscribe" in message_body:
             # Unsubscribe from alerts
             from services.alert_scheduler import alert_scheduler
             if alert_scheduler:
