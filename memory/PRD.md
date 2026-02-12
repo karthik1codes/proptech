@@ -2,7 +2,42 @@
 
 ## Latest Update: February 12, 2026
 
-### Upgrade: Clean MCP Implementation & WhatsApp Integration
+### Backlog Implementation Complete: WhatsApp Enhanced Features
+
+**Features Implemented:**
+
+1. **WhatsApp Message Templates** (`backend/services/whatsapp_service.py`)
+   - `MessageTemplates` class with pre-defined templates
+   - Templates: welcome, help_menu, property_list, property_details, alert_notification, active_alerts, no_alerts, error_message
+   - Consistent formatting with emojis and separators
+
+2. **Conversation History Persistence** (`backend/services/conversation_history.py`)
+   - MongoDB collection: `whatsapp_conversations`
+   - Saves all inbound/outbound messages with metadata
+   - APIs: GET `/api/whatsapp/conversations/{phone_number}`, GET `/api/whatsapp/conversations?query=`
+   - Features: search, user stats, context retrieval
+
+3. **Scheduled Alert Checks** (`backend/services/alert_scheduler.py`)
+   - Background task runs every 30 minutes (configurable via `ALERT_CHECK_INTERVAL`)
+   - Checks all properties against thresholds
+   - Sends alerts to subscribed phone numbers
+   - MongoDB collections: `alert_subscriptions`, `alert_logs`
+   - APIs: 
+     - POST `/api/whatsapp/alerts/subscribe`
+     - POST `/api/whatsapp/alerts/unsubscribe`
+     - GET `/api/whatsapp/alerts/subscriptions`
+     - GET `/api/whatsapp/alerts/history`
+     - POST `/api/whatsapp/alerts/check-now`
+
+4. **New WhatsApp Commands**
+   - `alerts` - View active alerts across all properties
+   - `status` - System status (scheduler, subscribers, properties)
+   - `subscribe` - Subscribe to automated alerts
+   - `unsubscribe` - Unsubscribe from alerts
+
+---
+
+### Previous Upgrade: Clean MCP Implementation & WhatsApp Integration
 
 **Changes Made:**
 1. **MCP Endpoint Cleanup**
@@ -28,6 +63,7 @@
    - `TWILIO_ACCOUNT_SID`
    - `TWILIO_AUTH_TOKEN`
    - `TWILIO_WHATSAPP_NUMBER`
+   - `ALERT_CHECK_INTERVAL` (optional, default: 1800 seconds)
 
 ---
 
