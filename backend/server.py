@@ -857,7 +857,7 @@ class MCPHandler:
             result_lines.append(f"## {i}. {rec['title']}")
             result_lines.append(f"**Type**: {rec['type']} | **Priority**: {rec['priority']}")
             result_lines.append(f"\n{rec['description']}\n")
-            result_lines.append(f"### Impact Analysis")
+            result_lines.append("### Impact Analysis")
             result_lines.append(f"- **Financial Impact**: {MCPHandler.format_currency_inr(rec['financial_impact'])}/month")
             result_lines.append(f"- **Energy Savings**: {MCPHandler.format_currency_inr(rec['weekly_energy_savings'])}/week")
             result_lines.append(f"- **Carbon Reduction**: {rec['carbon_reduction_kg']:.1f} kg CO₂/month")
@@ -1079,7 +1079,7 @@ Example: "Horizon Tech Park" """
         
         else:
             # Default response
-            response_text = f"""👋 Welcome to PropTech Copilot!
+            response_text = """👋 Welcome to PropTech Copilot!
 
 I can help you with property analytics.
 
