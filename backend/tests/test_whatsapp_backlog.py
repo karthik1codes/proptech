@@ -105,8 +105,8 @@ class TestMessageTemplates:
 class TestAlertsCommand:
     """Test 'alerts' webhook command"""
     
-    def test_alerts_command_returns_response(self):
-        """Test 'alerts' command returns alert status"""
+    def test_alerts_command_requires_linking(self):
+        """Test 'alerts' command requires account linking (multi-user system)"""
         response = requests.post(
             f"{BASE_URL}/api/whatsapp/webhook",
             data={"Body": "alerts", "From": "whatsapp:+919876543210"},
@@ -118,13 +118,10 @@ class TestAlertsCommand:
         assert "<Response>" in content
         assert "<Message>" in content
         
-        # Should return either active alerts or no alerts message
-        has_alerts = "Active Alert" in content
-        has_no_alerts = "No Active Alerts" in content or "normal parameters" in content
+        # Alerts command requires account linking in multi-user system
+        assert "Account Not Linked" in content or "Link" in content
         
-        assert has_alerts or has_no_alerts, "Should show either active alerts or no alerts message"
-        
-        print(f"✅ alerts command returns response (has_alerts: {has_alerts})")
+        print("✅ alerts command correctly requires linking")
 
 
 class TestStatusCommand:
