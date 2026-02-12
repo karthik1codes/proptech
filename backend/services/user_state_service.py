@@ -75,7 +75,7 @@ class UserPropertyStateService:
         try:
             now = datetime.now(timezone.utc)
             
-            result = await self.collection.update_one(
+            await self.collection.update_one(
                 {"user_id": user_id, "property_id": property_id},
                 {
                     "$set": {
