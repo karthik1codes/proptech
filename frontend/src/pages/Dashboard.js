@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Building2, TrendingUp, Zap, DollarSign, Users, 
-  ArrowUpRight, ArrowDownRight, AlertTriangle, Leaf,
-  BarChart3, ChevronRight
+  ArrowUpRight, ArrowDownRight, Leaf,
+  BarChart3, ChevronRight, Sparkles
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -13,7 +13,7 @@ import { Progress } from '../components/ui/progress';
 import { API, AuthContext } from '../App';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters';
 import AnimatedCounter from '../components/AnimatedCounter';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
   const { user } = useContext(AuthContext);
@@ -43,15 +43,15 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-6" data-testid="dashboard-loading">
+      <div className="space-y-8" data-testid="dashboard-loading">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
-            <Card key={i} className="glass">
-              <CardContent className="p-6">
-                <div className="h-24 shimmer rounded"></div>
-              </CardContent>
-            </Card>
+            <div key={i} className="h-36 skeleton rounded-2xl"></div>
           ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-80 skeleton rounded-2xl"></div>
+          <div className="h-80 skeleton rounded-2xl"></div>
         </div>
       </div>
     );
@@ -59,7 +59,6 @@ export default function Dashboard() {
 
   const kpis = dashboardData?.kpis || {};
   const optimization = dashboardData?.optimization_potential || {};
-  const propertyMetrics = dashboardData?.property_metrics || [];
 
   // Mock trend data for chart
   const trendData = Array.from({ length: 7 }, (_, i) => ({
@@ -79,28 +78,29 @@ export default function Dashboard() {
 
   const getUtilizationBadge = (status) => {
     switch (status) {
-      case 'Optimal': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case 'Underutilized': return 'bg-red-500/10 text-red-400 border-red-500/20';
-      case 'Overloaded': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'Optimal': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+      case 'Underutilized': return 'bg-red-500/10 text-red-400 border-red-500/30';
+      case 'Overloaded': return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
       default: return '';
     }
   };
 
   return (
-    <div className="space-y-6" data-testid="dashboard">
+    <div className="space-y-8" data-testid="dashboard">
       {/* Welcome Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Welcome back, {user?.name?.split(' ')[0] || 'User'}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div className="animate-fade-in">
+          <h1 className="text-4xl font-bold tracking-tight text-white">
+            Welcome back, <span className="gradient-text">{user?.name?.split(' ')[0] || 'User'}</span>
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-slate-400 mt-2 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-cyan-400" />
             Here's your property portfolio overview
           </p>
         </div>
         <Button 
           onClick={() => navigate('/portfolio')}
-          className="bg-blue-600 hover:bg-blue-500 glow-blue"
+          className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all btn-glow"
           data-testid="view-portfolio-btn"
         >
           <Building2 className="w-4 h-4 mr-2" />
@@ -110,83 +110,79 @@ export default function Dashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="glass card-hover metric-card" data-testid="kpi-revenue">
+        {/* Revenue Card */}
+        <Card className="glass card-hover metric-card border-white/5 animate-fade-in stagger-1" data-testid="kpi-revenue">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center border border-blue-500/20">
                 <DollarSign className="w-6 h-6 text-blue-400" />
               </div>
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
                 <ArrowUpRight className="w-3 h-3 mr-1" />
                 12.5%
               </Badge>
             </div>
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide">Total Revenue</p>
-              <p className="text-3xl font-bold font-mono mt-1">
-                <AnimatedCounter value={kpis.total_revenue} formatter={formatCurrency} />
-              </p>
-            </div>
+            <p className="text-sm text-slate-400 font-medium uppercase tracking-wider">Total Revenue</p>
+            <p className="text-3xl font-bold text-white font-mono mt-1">
+              <AnimatedCounter value={kpis.total_revenue} formatter={formatCurrency} />
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="glass card-hover metric-card" data-testid="kpi-profit">
+        {/* Profit Card */}
+        <Card className="glass card-hover metric-card border-white/5 animate-fade-in stagger-2" data-testid="kpi-profit">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 flex items-center justify-center border border-emerald-500/20">
                 <TrendingUp className="w-6 h-6 text-emerald-400" />
               </div>
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
                 <ArrowUpRight className="w-3 h-3 mr-1" />
                 8.2%
               </Badge>
             </div>
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide">Net Profit</p>
-              <p className="text-3xl font-bold font-mono mt-1">
-                <AnimatedCounter value={kpis.total_profit} formatter={formatCurrency} />
-              </p>
-            </div>
+            <p className="text-sm text-slate-400 font-medium uppercase tracking-wider">Net Profit</p>
+            <p className="text-3xl font-bold text-emerald-400 font-mono mt-1">
+              <AnimatedCounter value={kpis.total_profit} formatter={formatCurrency} />
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="glass card-hover metric-card" data-testid="kpi-occupancy">
+        {/* Occupancy Card */}
+        <Card className="glass card-hover metric-card border-white/5 animate-fade-in stagger-3" data-testid="kpi-occupancy">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center border border-amber-500/20">
                 <Users className="w-6 h-6 text-amber-400" />
               </div>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-slate-500 font-mono">
                 {formatNumber(kpis.total_occupied)} / {formatNumber(kpis.total_capacity)}
               </span>
             </div>
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide">Occupancy Rate</p>
-              <p className="text-3xl font-bold font-mono mt-1">
-                <AnimatedCounter value={kpis.overall_occupancy * 100} suffix="%" decimals={1} />
-              </p>
-            </div>
-            <Progress value={kpis.overall_occupancy * 100} className="mt-3 h-2" />
+            <p className="text-sm text-slate-400 font-medium uppercase tracking-wider">Occupancy Rate</p>
+            <p className="text-3xl font-bold text-white font-mono mt-1">
+              <AnimatedCounter value={kpis.overall_occupancy * 100} suffix="%" decimals={1} />
+            </p>
+            <Progress value={kpis.overall_occupancy * 100} className="mt-3 h-1.5 bg-slate-800" />
           </CardContent>
         </Card>
 
-        <Card className="glass card-hover metric-card" data-testid="kpi-energy">
+        {/* Energy Card */}
+        <Card className="glass card-hover metric-card border-white/5 animate-fade-in stagger-4" data-testid="kpi-energy">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 flex items-center justify-center border border-cyan-500/20">
                 <Zap className="w-6 h-6 text-cyan-400" />
               </div>
-              <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">
+              <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">
                 <ArrowDownRight className="w-3 h-3 mr-1" />
                 -5.3%
               </Badge>
             </div>
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide">Energy Cost</p>
-              <p className="text-3xl font-bold font-mono mt-1">
-                <AnimatedCounter value={kpis.total_energy_cost} formatter={formatCurrency} />
-              </p>
-            </div>
+            <p className="text-sm text-slate-400 font-medium uppercase tracking-wider">Energy Cost</p>
+            <p className="text-3xl font-bold text-white font-mono mt-1">
+              <AnimatedCounter value={kpis.total_energy_cost} formatter={formatCurrency} />
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -194,38 +190,39 @@ export default function Dashboard() {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Occupancy Trend Chart */}
-        <Card className="glass lg:col-span-2" data-testid="occupancy-chart">
+        <Card className="glass lg:col-span-2 border-white/5 animate-fade-in stagger-5" data-testid="occupancy-chart">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-400" />
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
+              <BarChart3 className="w-5 h-5 text-cyan-400" />
               Weekly Occupancy Trend
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendData}>
                   <defs>
                     <linearGradient id="colorOccupancy" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                      <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.4}/>
+                      <stop offset="100%" stopColor="#06B6D4" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="day" stroke="#64748B" fontSize={12} />
-                  <YAxis stroke="#64748B" fontSize={12} tickFormatter={(v) => `${v}%`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                  <XAxis dataKey="day" stroke="#64748B" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#64748B" fontSize={12} tickFormatter={(v) => `${v}%`} tickLine={false} axisLine={false} />
                   <Tooltip 
                     contentStyle={{ 
-                      background: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
+                      background: 'rgba(15, 23, 42, 0.9)', 
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '12px',
+                      boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
                     }}
                     formatter={(value) => [`${value.toFixed(1)}%`, 'Occupancy']}
                   />
                   <Area 
                     type="monotone" 
                     dataKey="occupancy" 
-                    stroke="#3B82F6" 
+                    stroke="#06B6D4" 
                     strokeWidth={2}
                     fillOpacity={1} 
                     fill="url(#colorOccupancy)" 
@@ -237,31 +234,31 @@ export default function Dashboard() {
         </Card>
 
         {/* Optimization Potential */}
-        <Card className="glass glow-blue" data-testid="optimization-potential">
+        <Card className="glass glow-primary border-white/5 animate-fade-in stagger-6" data-testid="optimization-potential">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
               <Leaf className="w-5 h-5 text-emerald-400" />
               Optimization Potential
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="text-center py-4">
-              <p className="text-sm text-muted-foreground uppercase tracking-wide mb-2">Potential Monthly Savings</p>
+            <div className="text-center py-6 rounded-xl bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border border-emerald-500/20">
+              <p className="text-sm text-slate-400 uppercase tracking-wider mb-2">Monthly Savings</p>
               <p className="text-4xl font-bold gradient-text font-mono">
                 {formatCurrency(optimization.potential_monthly_savings)}
               </p>
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Carbon Reduction</span>
-                <span className="font-mono text-sm">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02]">
+                <span className="text-sm text-slate-400">Carbon Reduction</span>
+                <span className="font-mono text-emerald-400 font-semibold">
                   {formatNumber(optimization.potential_carbon_reduction_kg)} kg
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Confidence Score</span>
-                <span className="font-mono text-sm text-emerald-400">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02]">
+                <span className="text-sm text-slate-400">Confidence Score</span>
+                <span className="font-mono text-cyan-400 font-semibold">
                   {formatPercent(optimization.optimization_confidence)}
                 </span>
               </div>
@@ -269,7 +266,7 @@ export default function Dashboard() {
 
             <Button 
               onClick={() => navigate('/simulator')}
-              className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400"
+              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 btn-glow"
               data-testid="run-simulation-btn"
             >
               Run Optimization Simulation
@@ -280,53 +277,54 @@ export default function Dashboard() {
       </div>
 
       {/* Property Overview */}
-      <Card className="glass" data-testid="property-overview">
+      <Card className="glass border-white/5 animate-fade-in" data-testid="property-overview">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-blue-400" />
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
+              <Building2 className="w-5 h-5 text-cyan-400" />
               Property Overview
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/portfolio')}>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/portfolio')} className="text-slate-400 hover:text-white">
               View All
               <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {properties.slice(0, 3).map((prop, idx) => (
               <div 
                 key={prop.property_id}
-                className="flex items-center justify-between p-4 rounded-xl bg-zinc-900/50 hover:bg-zinc-800/50 cursor-pointer transition-colors"
+                className="flex items-center justify-between p-5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-cyan-500/20 cursor-pointer transition-all group"
                 onClick={() => navigate(`/property/${prop.property_id}`)}
                 data-testid={`property-card-${prop.property_id}`}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center text-lg font-bold text-blue-400">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center text-lg font-bold text-cyan-400 border border-cyan-500/20 group-hover:border-cyan-500/40 transition-colors">
                     {idx + 1}
                   </div>
                   <div>
-                    <h4 className="font-semibold">{prop.name}</h4>
-                    <p className="text-sm text-muted-foreground">{prop.location}</p>
+                    <h4 className="font-semibold text-white group-hover:text-cyan-400 transition-colors">{prop.name}</h4>
+                    <p className="text-sm text-slate-500">{prop.location}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-8">
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Occupancy</p>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider">Occupancy</p>
                     <p className={`font-mono font-semibold ${getUtilizationColor(prop.utilization_status)}`}>
                       {formatPercent(prop.current_occupancy)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Profit</p>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider">Profit</p>
                     <p className="font-mono font-semibold text-emerald-400">
                       {formatCurrency(prop.current_profit)}
                     </p>
                   </div>
-                  <Badge className={getUtilizationBadge(prop.utilization_status)}>
+                  <Badge className={`${getUtilizationBadge(prop.utilization_status)} border`}>
                     {prop.utilization_status}
                   </Badge>
+                  <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
                 </div>
               </div>
             ))}
