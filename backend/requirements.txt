@@ -123,3 +123,4 @@ yarl==1.22.0
 zipp==3.23.0
 emergentintegrations==0.1.0
 twilio==9.10.1
+reportlab==4.4.10
