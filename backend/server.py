@@ -104,14 +104,13 @@ class PropertyStore:
         for floor_num in range(1, floors + 1):
             rooms = []
             for room_num in range(1, rooms_per_floor + 1):
-                # Vary capacity by room type
                 capacity = random.choice([8, 10, 12, 15, 20])
                 room_type = random.choice(["Conference", "Open Desk", "Private Office", "Hot Desk", "Meeting Room"])
                 rooms.append({
                     "room_id": f"F{floor_num}R{room_num}",
                     "room_type": room_type,
                     "capacity": capacity,
-                    "current_occupancy": 0,  # Will be updated dynamically
+                    "current_occupancy": 0,
                 })
             
             floor_data.append({
@@ -128,20 +127,17 @@ class PropertyStore:
             current_date = base_date + timedelta(days=day_offset)
             day_of_week = current_date.weekday()
             
-            # Weekday patterns
-            if day_of_week < 5:  # Monday-Friday
+            if day_of_week < 5:
                 base_occupancy = random.uniform(0.65, 0.85)
-                if day_of_week == 4:  # Friday moderate drop
+                if day_of_week == 4:
                     base_occupancy *= 0.85
-            else:  # Weekend
+            else:
                 base_occupancy = random.uniform(0.15, 0.35)
             
-            # Event spikes (10% chance)
             is_event_day = random.random() < 0.1
             if is_event_day:
                 base_occupancy = min(base_occupancy * 1.25, 0.98)
             
-            # Calculate metrics
             occupancy_rate = base_occupancy + random.uniform(-0.05, 0.05)
             occupancy_rate = max(0.1, min(0.98, occupancy_rate))
             
@@ -157,7 +153,6 @@ class PropertyStore:
                 "day_of_week": day_of_week,
             })
         
-        # Update current floor occupancy based on recent data
         recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7
         for floor in floor_data:
             for room in floor["rooms"]:
@@ -194,11 +189,9 @@ property_store = PropertyStore()
 class IntelligenceEngine:
     @staticmethod
     def calculate_7day_forecast(daily_data: List[Dict]) -> List[Dict]:
-        """Calculate 7-day occupancy forecast using moving average and weekday weighting"""
         if len(daily_data) < 14:
             return []
         
-        # Group by day of week
         weekday_averages = {}
         for d in daily_data[-30:]:
             dow = d["day_of_week"]
@@ -209,7 +202,6 @@ class IntelligenceEngine:
         for dow in weekday_averages:
             weekday_averages[dow] = sum(weekday_averages[dow]) / len(weekday_averages[dow])
         
-        # Generate forecast
         forecast = []
         last_date = datetime.strptime(daily_data[-1]["date"], "%Y-%m-%d")
         
@@ -218,7 +210,6 @@ class IntelligenceEngine:
             dow = forecast_date.weekday()
             base_forecast = weekday_averages.get(dow, 0.5)
             
-            # Add some variance
             forecasted_occupancy = base_forecast * random.uniform(0.95, 1.05)
             forecasted_occupancy = max(0.1, min(0.95, forecasted_occupancy))
             
@@ -232,7 +223,6 @@ class IntelligenceEngine:
     
     @staticmethod
     def classify_utilization(occupancy_rate: float) -> str:
-        """Classify utilization based on occupancy rate"""
         if occupancy_rate < 0.4:
             return "Underutilized"
         elif occupancy_rate <= 0.85:
@@ -242,7 +232,6 @@ class IntelligenceEngine:
     
     @staticmethod
     def calculate_financials(prop: Dict, occupancy_rate: float) -> Dict:
-        """Calculate financial metrics"""
         total_capacity = prop.get("total_capacity", prop["floors"] * prop["rooms_per_floor"] * 10)
         occupied_seats = int(total_capacity * occupancy_rate)
         
@@ -261,22 +250,45 @@ class IntelligenceEngine:
         }
     
     @staticmethod
+    def calculate_sustainability_score(prop: Dict, occupancy_rate: float) -> float:
+        energy_efficiency = 100 - (prop["baseline_energy_intensity"] / 2)
+        sustainability_score = energy_efficiency * 0.4 + (1 - occupancy_rate * 0.3) * 100 * 0.3 + 50 * 0.3
+        return round(sustainability_score, 1)
+    
+    @staticmethod
+    def calculate_efficiency_score(prop: Dict) -> float:
+        digital_twin = prop.get("digital_twin", {})
+        floor_data = digital_twin.get("floor_data", [])
+        total_floors = prop["floors"]
+        
+        optimal_floors = 0
+        for f in floor_data:
+            floor_capacity = sum(r["capacity"] for r in f["rooms"])
+            floor_occupancy = sum(r["current_occupancy"] for r in f["rooms"])
+            floor_rate = floor_occupancy / floor_capacity if floor_capacity > 0 else 0
+            if 0.4 <= floor_rate <= 0.85:
+                optimal_floors += 1
+        
+        return round((optimal_floors / total_floors) * 100, 1) if total_floors > 0 else 0
+    
+    @staticmethod
+    def calculate_carbon_estimate(prop: Dict, occupancy_rate: float) -> float:
+        carbon_per_kwh = 0.82
+        return round(prop["baseline_energy_intensity"] * occupancy_rate * prop["floors"] * carbon_per_kwh * 30, 2)
+    
+    @staticmethod
     def calculate_energy_savings(prop: Dict, current_occupancy: float, floors_to_close: List[int], 
                                   new_occupancy: float = None) -> Dict:
-        """Calculate energy savings from floor closures and occupancy changes"""
         floors = prop["floors"]
         baseline_energy = prop["baseline_energy_intensity"]
         energy_cost = prop["energy_cost_per_unit"]
         
-        # Current energy
         current_energy = baseline_energy * current_occupancy * floors
         current_cost_daily = current_energy * energy_cost
         
-        # After optimization
         active_floors = floors - len(floors_to_close)
         target_occupancy = new_occupancy if new_occupancy else current_occupancy
         
-        # Redistributed occupancy on active floors
         if active_floors > 0:
             redistributed_occupancy = min(target_occupancy * floors / active_floors, 0.95)
         else:
@@ -303,49 +315,39 @@ class IntelligenceEngine:
     def simulate_floor_closure(prop: Dict, floors_to_close: List[int], 
                                 hybrid_intensity: float = 1.0, 
                                 target_occupancy: float = None) -> Dict:
-        """Simulate what-if scenario for floor closures"""
         digital_twin = prop.get("digital_twin", {})
         daily_data = digital_twin.get("daily_history", [])
         floor_data = digital_twin.get("floor_data", [])
         
-        # Current metrics
         recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
         current_financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
         
-        # Calculate current utilization score
         total_floors = prop["floors"]
         optimal_floors = sum(1 for f in floor_data if 0.4 <= (sum(r["current_occupancy"] for r in f["rooms"]) / 
                             sum(r["capacity"] for r in f["rooms"])) <= 0.85) if floor_data else int(total_floors * 0.6)
         current_efficiency_score = round((optimal_floors / total_floors) * 100, 1)
         
-        # Apply hybrid intensity and target occupancy
         effective_occupancy = target_occupancy if target_occupancy else recent_occupancy * hybrid_intensity
         
-        # Calculate energy savings
         energy_savings = IntelligenceEngine.calculate_energy_savings(
             prop, recent_occupancy, floors_to_close, effective_occupancy
         )
         
-        # Calculate new financials
         active_floors = total_floors - len(floors_to_close)
         new_financials = IntelligenceEngine.calculate_financials(
             {**prop, "floors": active_floors}, 
             energy_savings["redistributed_occupancy"]
         )
         
-        # Maintenance savings from closed floors
         maintenance_savings = len(floors_to_close) * prop["maintenance_per_floor"]
         
-        # Calculate overload risk
         overload_risk = "High" if energy_savings["redistributed_occupancy"] > 0.9 else \
                        "Medium" if energy_savings["redistributed_occupancy"] > 0.8 else "Low"
         
-        # Carbon calculations (rough estimates)
-        carbon_per_kwh = 0.82  # kg CO2 per kWh (India grid average)
+        carbon_per_kwh = 0.82
         carbon_reduction = (energy_savings["before_energy_usage"] - energy_savings["after_energy_usage"]) * carbon_per_kwh * 30
         
-        # New efficiency score
-        new_optimal_floors = int(active_floors * 0.8)  # Assume better optimization after closure
+        new_optimal_floors = int(active_floors * 0.8)
         new_efficiency_score = round((new_optimal_floors / active_floors) * 100 if active_floors > 0 else 0, 1)
         
         return {
@@ -391,7 +393,6 @@ class IntelligenceEngine:
     
     @staticmethod
     def generate_recommendations(prop: Dict) -> List[Dict]:
-        """Generate AI-like recommendations based on property data"""
         digital_twin = prop.get("digital_twin", {})
         daily_data = digital_twin.get("daily_history", [])
         
@@ -401,8 +402,7 @@ class IntelligenceEngine:
         recommendations = []
         
         if utilization == "Underutilized":
-            # Recommend floor consolidation
-            floors_to_close = [prop["floors"], prop["floors"] - 1]  # Close top 2 floors
+            floors_to_close = [prop["floors"], prop["floors"] - 1]
             simulation = IntelligenceEngine.simulate_floor_closure(prop, floors_to_close)
             
             recommendations.append({
@@ -427,7 +427,7 @@ class IntelligenceEngine:
                 "priority": "High",
                 "title": "Consider expanding capacity or redistributing load",
                 "description": "High utilization may impact employee comfort and productivity. Consider flexible scheduling or space expansion.",
-                "financial_impact": prop["revenue_per_seat"] * 50,  # Potential revenue from better distribution
+                "financial_impact": prop["revenue_per_seat"] * 50,
                 "weekly_energy_savings": 0,
                 "monthly_energy_savings": 0,
                 "energy_reduction_percent": 0,
@@ -436,7 +436,6 @@ class IntelligenceEngine:
                 "confidence_score": 0.82,
             })
         
-        # Energy optimization recommendation
         energy_savings = IntelligenceEngine.calculate_energy_savings(prop, recent_occupancy, [], recent_occupancy * 0.9)
         recommendations.append({
             "id": f"rec_{uuid.uuid4().hex[:8]}",
@@ -453,7 +452,6 @@ class IntelligenceEngine:
             "confidence_score": 0.91,
         })
         
-        # Hybrid work recommendation
         recommendations.append({
             "id": f"rec_{uuid.uuid4().hex[:8]}",
             "type": "Hybrid Optimization",
@@ -473,7 +471,6 @@ class IntelligenceEngine:
     
     @staticmethod
     def generate_copilot_insight(prop: Dict, query: str = None) -> Dict:
-        """Generate copilot-style structured insight"""
         digital_twin = prop.get("digital_twin", {})
         daily_data = digital_twin.get("daily_history", [])
         
@@ -481,7 +478,6 @@ class IntelligenceEngine:
         utilization = IntelligenceEngine.classify_utilization(recent_occupancy)
         financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
         
-        # Determine root cause and action based on utilization
         if utilization == "Underutilized":
             root_cause = "Hybrid work patterns and seasonal variations have reduced daily occupancy below optimal levels."
             action = f"Consolidate operations to {max(1, prop['floors'] - 2)} floors during off-peak periods."
@@ -516,6 +512,349 @@ class IntelligenceEngine:
         }
 
 
+# ==================== MCP (Model Context Protocol) HANDLER ====================
+
+class MCPHandler:
+    """
+    MCP Handler for PropTech Decision Copilot
+    Implements JSON-RPC style protocol for AI assistant integration
+    """
+    
+    MCP_VERSION = "1.0.0"
+    
+    TOOLS = {
+        "list_properties": {
+            "description": "Returns all properties with name, location, occupancy, profit (₹), and efficiency score",
+            "parameters": {}
+        },
+        "get_property_overview": {
+            "description": "Get detailed overview of a property including revenue, profit, sustainability score, efficiency score, and carbon estimate",
+            "parameters": {
+                "property_id": {"type": "string", "description": "The unique property identifier", "required": True}
+            }
+        },
+        "simulate_floor_closure": {
+            "description": "Simulate closing floors and get projected savings including weekly/monthly savings (₹), energy reduction %, efficiency change, and carbon reduction",
+            "parameters": {
+                "property_id": {"type": "string", "description": "The unique property identifier", "required": True},
+                "floors_to_close": {"type": "array", "items": {"type": "integer"}, "description": "List of floor numbers to close", "required": True}
+            }
+        },
+        "energy_savings_report": {
+            "description": "Get energy savings analysis for a property with weekly/monthly savings and percentage reduction",
+            "parameters": {
+                "property_id": {"type": "string", "description": "The unique property identifier", "required": True}
+            }
+        },
+        "get_recommendations": {
+            "description": "Get AI recommendations for a property including financial impact (₹), energy savings, carbon impact, and confidence score",
+            "parameters": {
+                "property_id": {"type": "string", "description": "The unique property identifier", "required": True}
+            }
+        }
+    }
+    
+    @staticmethod
+    def format_currency_inr(value: float) -> str:
+        """Format value in Indian Rupees with Lakhs/Crores notation"""
+        if abs(value) >= 10000000:
+            return f"₹{value / 10000000:.2f} Cr"
+        elif abs(value) >= 100000:
+            return f"₹{value / 100000:.2f} L"
+        else:
+            return f"₹{value:,.0f}"
+    
+    @staticmethod
+    def handle_request(request_data: Dict) -> Dict:
+        """Process MCP request and return response"""
+        method = request_data.get("method", "")
+        params = request_data.get("params", {})
+        request_id = request_data.get("id", 1)
+        
+        # Handle initialization
+        if method == "initialize":
+            return MCPHandler._handle_initialize(request_id)
+        
+        # Handle tools/list
+        if method == "tools/list":
+            return MCPHandler._handle_tools_list(request_id)
+        
+        # Handle tools/call
+        if method == "tools/call":
+            return MCPHandler._handle_tools_call(request_id, params)
+        
+        # Unknown method
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32601,
+                "message": f"Method not found: {method}"
+            }
+        }
+    
+    @staticmethod
+    def _handle_initialize(request_id: int) -> Dict:
+        """Handle MCP initialization"""
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "protocolVersion": MCPHandler.MCP_VERSION,
+                "serverInfo": {
+                    "name": "PropTech Decision Copilot MCP Server",
+                    "version": "1.0.0"
+                },
+                "capabilities": {
+                    "tools": True,
+                    "prompts": False,
+                    "resources": False
+                }
+            }
+        }
+    
+    @staticmethod
+    def _handle_tools_list(request_id: int) -> Dict:
+        """Return list of available tools"""
+        tools = []
+        for name, info in MCPHandler.TOOLS.items():
+            tool_schema = {
+                "name": name,
+                "description": info["description"],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }
+            for param_name, param_info in info["parameters"].items():
+                tool_schema["inputSchema"]["properties"][param_name] = {
+                    "type": param_info["type"],
+                    "description": param_info.get("description", "")
+                }
+                if param_info.get("required", False):
+                    tool_schema["inputSchema"]["required"].append(param_name)
+            tools.append(tool_schema)
+        
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {"tools": tools}
+        }
+    
+    @staticmethod
+    def _handle_tools_call(request_id: int, params: Dict) -> Dict:
+        """Execute a tool and return result"""
+        tool_name = params.get("name", "")
+        arguments = params.get("arguments", {})
+        
+        try:
+            if tool_name == "list_properties":
+                result = MCPHandler._tool_list_properties()
+            elif tool_name == "get_property_overview":
+                result = MCPHandler._tool_get_property_overview(arguments.get("property_id"))
+            elif tool_name == "simulate_floor_closure":
+                result = MCPHandler._tool_simulate_floor_closure(
+                    arguments.get("property_id"),
+                    arguments.get("floors_to_close", [])
+                )
+            elif tool_name == "energy_savings_report":
+                result = MCPHandler._tool_energy_savings_report(arguments.get("property_id"))
+            elif tool_name == "get_recommendations":
+                result = MCPHandler._tool_get_recommendations(arguments.get("property_id"))
+            else:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32602,
+                        "message": f"Unknown tool: {tool_name}"
+                    }
+                }
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": result
+                        }
+                    ]
+                }
+            }
+        except Exception as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32603,
+                    "message": str(e)
+                }
+            }
+    
+    @staticmethod
+    def _tool_list_properties() -> str:
+        """List all properties with key metrics"""
+        properties = property_store.get_all()
+        result_lines = ["# Property Portfolio Overview\n"]
+        
+        for prop in properties:
+            digital_twin = prop.get("digital_twin", {})
+            daily_data = digital_twin.get("daily_history", [])
+            
+            recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+            financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+            efficiency_score = IntelligenceEngine.calculate_efficiency_score(prop)
+            
+            result_lines.append(f"## {prop['name']}")
+            result_lines.append(f"- **Location**: {prop['location']}")
+            result_lines.append(f"- **Occupancy**: {round(recent_occupancy * 100, 1)}%")
+            result_lines.append(f"- **Profit**: {MCPHandler.format_currency_inr(financials['profit'])}")
+            result_lines.append(f"- **Efficiency Score**: {efficiency_score}%")
+            result_lines.append(f"- **Property ID**: `{prop['property_id']}`\n")
+        
+        return "\n".join(result_lines)
+    
+    @staticmethod
+    def _tool_get_property_overview(property_id: str) -> str:
+        """Get detailed property overview"""
+        if not property_id:
+            raise ValueError("property_id is required")
+        
+        prop = property_store.get_by_id(property_id)
+        if not prop:
+            raise ValueError(f"Property not found: {property_id}")
+        
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+        efficiency_score = IntelligenceEngine.calculate_efficiency_score(prop)
+        sustainability_score = IntelligenceEngine.calculate_sustainability_score(prop, recent_occupancy)
+        carbon_estimate = IntelligenceEngine.calculate_carbon_estimate(prop, recent_occupancy)
+        
+        return f"""# {prop['name']} Overview
+
+## Key Metrics
+- **Revenue**: {MCPHandler.format_currency_inr(financials['revenue'])}
+- **Profit**: {MCPHandler.format_currency_inr(financials['profit'])}
+- **Sustainability Score**: {sustainability_score}/100
+- **Efficiency Score**: {efficiency_score}%
+- **Carbon Estimate**: {carbon_estimate} kg CO₂/month
+
+## Property Details
+- **Type**: {prop['type']}
+- **Location**: {prop['location']}
+- **Floors**: {prop['floors']}
+- **Total Capacity**: {financials['total_capacity']} seats
+- **Current Occupancy**: {round(recent_occupancy * 100, 1)}% ({financials['occupied_seats']} seats)
+
+## Financial Breakdown
+- **Energy Cost**: {MCPHandler.format_currency_inr(financials['energy_cost'])}
+- **Maintenance Cost**: {MCPHandler.format_currency_inr(financials['maintenance_cost'])}
+"""
+    
+    @staticmethod
+    def _tool_simulate_floor_closure(property_id: str, floors_to_close: List[int]) -> str:
+        """Simulate floor closure scenario"""
+        if not property_id:
+            raise ValueError("property_id is required")
+        if not floors_to_close:
+            raise ValueError("floors_to_close array is required")
+        
+        prop = property_store.get_by_id(property_id)
+        if not prop:
+            raise ValueError(f"Property not found: {property_id}")
+        
+        simulation = IntelligenceEngine.simulate_floor_closure(prop, floors_to_close)
+        
+        return f"""# Floor Closure Simulation: {prop['name']}
+
+## Scenario
+- **Floors to Close**: {', '.join(map(str, floors_to_close))}
+- **Active Floors**: {simulation['scenario_summary']['active_floors']} (from {prop['floors']})
+
+## Projected Savings
+- **Weekly Savings**: {MCPHandler.format_currency_inr(simulation['savings']['total_weekly_savings'])}
+- **Monthly Savings**: {MCPHandler.format_currency_inr(simulation['savings']['total_monthly_savings'])}
+- **Energy Reduction**: {simulation['energy_impact']['energy_reduction_percent']}%
+
+## Efficiency Impact
+- **Before**: {simulation['efficiency_score_change']['before']}%
+- **After**: {simulation['efficiency_score_change']['after']}%
+- **Change**: {'+' if simulation['efficiency_score_change']['improvement'] > 0 else ''}{simulation['efficiency_score_change']['improvement']}%
+
+## Carbon Impact
+- **Monthly Carbon Reduction**: {simulation['carbon_impact']['monthly_carbon_reduction_kg']} kg CO₂
+- **Annual Carbon Reduction**: {simulation['carbon_impact']['annual_carbon_reduction_tons']} tons CO₂
+
+## Risk Assessment
+- **Overload Risk**: {simulation['risk_assessment']['overload_risk']}
+- **Redistribution Efficiency**: {simulation['risk_assessment']['redistribution_efficiency']}
+"""
+    
+    @staticmethod
+    def _tool_energy_savings_report(property_id: str) -> str:
+        """Get energy savings analysis"""
+        if not property_id:
+            raise ValueError("property_id is required")
+        
+        prop = property_store.get_by_id(property_id)
+        if not prop:
+            raise ValueError(f"Property not found: {property_id}")
+        
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        
+        # Calculate scenarios
+        scenarios = [
+            {"floors": [prop["floors"]], "label": "Close 1 Floor"},
+            {"floors": [prop["floors"], prop["floors"]-1], "label": "Close 2 Floors"},
+        ]
+        
+        result_lines = [f"# Energy Savings Report: {prop['name']}\n"]
+        result_lines.append(f"**Current Occupancy**: {round(recent_occupancy * 100, 1)}%\n")
+        
+        for scenario in scenarios:
+            savings = IntelligenceEngine.calculate_energy_savings(prop, recent_occupancy, scenario["floors"])
+            result_lines.append(f"## {scenario['label']}")
+            result_lines.append(f"- **Weekly Savings**: {MCPHandler.format_currency_inr(savings['weekly_savings'])}")
+            result_lines.append(f"- **Monthly Savings**: {MCPHandler.format_currency_inr(savings['monthly_savings'])}")
+            result_lines.append(f"- **Energy Reduction**: {savings['energy_reduction_percent']}%\n")
+        
+        return "\n".join(result_lines)
+    
+    @staticmethod
+    def _tool_get_recommendations(property_id: str) -> str:
+        """Get AI recommendations"""
+        if not property_id:
+            raise ValueError("property_id is required")
+        
+        prop = property_store.get_by_id(property_id)
+        if not prop:
+            raise ValueError(f"Property not found: {property_id}")
+        
+        recommendations = IntelligenceEngine.generate_recommendations(prop)
+        
+        result_lines = [f"# AI Recommendations: {prop['name']}\n"]
+        
+        for i, rec in enumerate(recommendations, 1):
+            result_lines.append(f"## {i}. {rec['title']}")
+            result_lines.append(f"**Type**: {rec['type']} | **Priority**: {rec['priority']}")
+            result_lines.append(f"\n{rec['description']}\n")
+            result_lines.append(f"### Impact Analysis")
+            result_lines.append(f"- **Financial Impact**: {MCPHandler.format_currency_inr(rec['financial_impact'])}/month")
+            result_lines.append(f"- **Energy Savings**: {MCPHandler.format_currency_inr(rec['weekly_energy_savings'])}/week")
+            result_lines.append(f"- **Carbon Reduction**: {rec['carbon_reduction_kg']:.1f} kg CO₂/month")
+            result_lines.append(f"- **Confidence Score**: {rec['confidence_score'] * 100:.0f}%\n")
+        
+        return "\n".join(result_lines)
+
+
 # ==================== PYDANTIC MODELS ====================
 
 class UserSession(BaseModel):
@@ -548,15 +887,19 @@ class FloorClosureRequest(BaseModel):
     hybrid_intensity: float = Field(default=1.0, ge=0.1, le=1.5)
     target_occupancy: Optional[float] = Field(default=None, ge=0.1, le=1.0)
 
+class MCPRequest(BaseModel):
+    jsonrpc: str = "2.0"
+    method: str
+    params: Optional[Dict[str, Any]] = {}
+    id: Optional[int] = 1
+
 
 # ==================== AUTH MIDDLEWARE ====================
 
 async def get_current_user(request: Request) -> User:
     """Extract and validate user from session token"""
-    # Check cookie first
     session_token = request.cookies.get("session_token")
     
-    # Fallback to Authorization header
     if not session_token:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -565,7 +908,6 @@ async def get_current_user(request: Request) -> User:
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # Find session
     session_doc = await db.user_sessions.find_one(
         {"session_token": session_token},
         {"_id": 0}
@@ -574,7 +916,6 @@ async def get_current_user(request: Request) -> User:
     if not session_doc:
         raise HTTPException(status_code=401, detail="Invalid session")
     
-    # Check expiry
     expires_at = session_doc["expires_at"]
     if isinstance(expires_at, str):
         expires_at = datetime.fromisoformat(expires_at)
@@ -584,7 +925,6 @@ async def get_current_user(request: Request) -> User:
     if expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
     
-    # Get user
     user_doc = await db.users.find_one(
         {"user_id": session_doc["user_id"]},
         {"_id": 0}
@@ -593,11 +933,22 @@ async def get_current_user(request: Request) -> User:
     if not user_doc:
         raise HTTPException(status_code=401, detail="User not found")
     
-    # Convert datetime if needed
     if isinstance(user_doc.get("created_at"), str):
         user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
     
     return User(**user_doc)
+
+
+# ==================== MCP ENDPOINT ====================
+
+@api_router.post("/mcp")
+async def mcp_endpoint(request: MCPRequest):
+    """
+    MCP (Model Context Protocol) endpoint for AI assistant integration.
+    Supports JSON-RPC style requests for property analytics tools.
+    """
+    response = MCPHandler.handle_request(request.model_dump())
+    return response
 
 
 # ==================== AUTH ROUTES ====================
@@ -611,7 +962,6 @@ async def create_session(request: Request, response: Response):
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id required")
     
-    # Call Emergent Auth to get session data
     try:
         async with httpx.AsyncClient() as client:
             auth_response = await client.get(
@@ -628,20 +978,17 @@ async def create_session(request: Request, response: Response):
         logger.error(f"Auth service error: {e}")
         raise HTTPException(status_code=500, detail="Authentication service unavailable")
     
-    # Extract user data
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     email = auth_data.get("email")
     name = auth_data.get("name")
     picture = auth_data.get("picture")
     session_token = auth_data.get("session_token")
     
-    # Check if user exists
     existing_user = await db.users.find_one({"email": email}, {"_id": 0})
     
     if existing_user:
         user_id = existing_user["user_id"]
     else:
-        # Create new user
         user_doc = {
             "user_id": user_id,
             "email": email,
@@ -651,7 +998,6 @@ async def create_session(request: Request, response: Response):
         }
         await db.users.insert_one(user_doc)
     
-    # Create session
     session_doc = {
         "user_id": user_id,
         "session_token": session_token,
@@ -659,11 +1005,9 @@ async def create_session(request: Request, response: Response):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     
-    # Remove old sessions for this user
     await db.user_sessions.delete_many({"user_id": user_id})
     await db.user_sessions.insert_one(session_doc)
     
-    # Set cookie
     response.set_cookie(
         key="session_token",
         value=session_token,
@@ -674,7 +1018,6 @@ async def create_session(request: Request, response: Response):
         path="/",
     )
     
-    # Get full user data
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     
     return {"user": user_doc, "session_token": session_token}
@@ -711,7 +1054,6 @@ async def get_properties(user: User = Depends(get_current_user)):
     """Get all properties"""
     properties = property_store.get_all()
     
-    # Add computed metrics to each property
     result = []
     for prop in properties:
         digital_twin = prop.get("digital_twin", {})
@@ -749,7 +1091,6 @@ async def get_property(property_id: str, user: User = Depends(get_current_user))
     utilization = IntelligenceEngine.classify_utilization(recent_occupancy)
     forecast = IntelligenceEngine.calculate_7day_forecast(daily_data)
     
-    # Calculate efficiency score
     floor_data = digital_twin.get("floor_data", [])
     total_floors = prop["floors"]
     optimal_floors = 0
@@ -811,7 +1152,6 @@ async def get_dashboard_analytics(user: User = Depends(get_current_user)):
         total_capacity += financials["total_capacity"]
         total_occupied += financials["occupied_seats"]
         
-        # Carbon estimate
         carbon = prop["baseline_energy_intensity"] * recent_occupancy * prop["floors"] * 0.82 * 30
         total_carbon += carbon
         
@@ -826,7 +1166,6 @@ async def get_dashboard_analytics(user: User = Depends(get_current_user)):
     
     overall_occupancy = total_occupied / total_capacity if total_capacity > 0 else 0
     
-    # Calculate potential savings (assume 15% optimization)
     potential_energy_savings = total_energy_cost * 0.15
     potential_carbon_reduction = total_carbon * 0.15
     
@@ -865,8 +1204,7 @@ async def get_portfolio_benchmark(user: User = Depends(get_current_user)):
         recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
         financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
         
-        # Calculate scores
-        energy_efficiency = 100 - (prop["baseline_energy_intensity"] / 2)  # Lower is better
+        energy_efficiency = 100 - (prop["baseline_energy_intensity"] / 2)
         sustainability_score = energy_efficiency * 0.4 + (1 - recent_occupancy * 0.3) * 100 * 0.3 + 50 * 0.3
         profit_score = (financials["profit"] / financials["revenue"]) * 100 if financials["revenue"] > 0 else 0
         carbon_intensity = prop["baseline_energy_intensity"] * recent_occupancy * 0.82
@@ -883,7 +1221,6 @@ async def get_portfolio_benchmark(user: User = Depends(get_current_user)):
             "occupancy_rate": round(recent_occupancy, 3),
         })
     
-    # Add rankings
     for metric in ["profit", "energy_efficiency", "sustainability_score"]:
         sorted_benchmarks = sorted(benchmarks, key=lambda x: x[metric], reverse=True)
         for rank, b in enumerate(sorted_benchmarks, 1):
@@ -891,7 +1228,6 @@ async def get_portfolio_benchmark(user: User = Depends(get_current_user)):
                 if benchmark["property_id"] == b["property_id"]:
                     benchmark[f"{metric}_rank"] = rank
     
-    # Carbon intensity (lower is better)
     sorted_carbon = sorted(benchmarks, key=lambda x: x["carbon_intensity"])
     for rank, b in enumerate(sorted_carbon, 1):
         for benchmark in benchmarks:
@@ -909,7 +1245,6 @@ async def simulate_floor_closure(request: FloorClosureRequest, user: User = Depe
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
     
-    # Validate floors
     max_floor = prop["floors"]
     for floor in request.floors_to_close:
         if floor < 1 or floor > max_floor:
@@ -938,7 +1273,6 @@ async def get_energy_savings(property_id: str, user: User = Depends(get_current_
     
     recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
     
-    # Calculate savings for different scenarios
     scenarios = [
         {"floors_to_close": [], "label": "Current State"},
         {"floors_to_close": [prop["floors"]], "label": "Close 1 Floor"},
@@ -1006,7 +1340,6 @@ async def get_executive_summary(user: User = Depends(get_current_user)):
                 "type": top_rec["type"],
             })
     
-    # Sort actions by impact
     top_actions = sorted(top_actions, key=lambda x: x["impact"], reverse=True)[:5]
     
     avg_efficiency_improvement = total_efficiency_improvement / len(properties) if properties else 0
@@ -1038,7 +1371,7 @@ async def get_copilot_insight(property_id: str, user: User = Depends(get_current
 
 @api_router.get("/")
 async def root():
-    return {"message": "PropTech Decision Copilot API", "version": "1.0.0"}
+    return {"message": "PropTech Decision Copilot API", "version": "1.1.0", "mcp_enabled": True}
 
 
 @api_router.get("/health")
