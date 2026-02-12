@@ -175,6 +175,138 @@ class PropTechAPITester:
         
         self.run_test("Executive Summary", "GET", "/copilot/executive-summary", 200)
 
+    def test_mcp_endpoints(self):
+        """Test MCP (Model Context Protocol) integration"""
+        print("\n" + "="*50)
+        print("🔗 TESTING MCP ENDPOINTS")
+        print("="*50)
+        
+        # Test initialize
+        mcp_init = {
+            "jsonrpc": "2.0",
+            "method": "initialize",
+            "id": 1
+        }
+        success, response = self.run_test("MCP Initialize", "POST", "/mcp", 200, mcp_init, {"Content-Type": "application/json"})
+        
+        # Test tools/list - should return all 5 tools
+        mcp_tools_list = {
+            "jsonrpc": "2.0",
+            "method": "tools/list",
+            "id": 2
+        }
+        success, response = self.run_test("MCP Tools List", "POST", "/mcp", 200, mcp_tools_list)
+        if success and 'result' in response and 'tools' in response['result']:
+            tools = response['result']['tools']
+            print(f"   Found {len(tools)} MCP tools")
+            tool_names = [tool.get('name', 'Unknown') for tool in tools]
+            print(f"   Tools: {', '.join(tool_names)}")
+            
+            # Check if we have all 5 expected tools
+            expected_tools = ['list_properties', 'get_property_overview', 'simulate_floor_closure', 'energy_savings_report', 'get_recommendations']
+            missing_tools = [tool for tool in expected_tools if tool not in tool_names]
+            if missing_tools:
+                print(f"   ❌ Missing tools: {missing_tools}")
+            else:
+                print(f"   ✅ All expected tools found")
+        
+        # Test list_properties tool
+        mcp_list_properties = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "list_properties",
+                "arguments": {}
+            },
+            "id": 3
+        }
+        success, response = self.run_test("MCP List Properties", "POST", "/mcp", 200, mcp_list_properties)
+        if success and 'result' in response and 'content' in response['result']:
+            content = response['result']['content'][0]['text']
+            if "Property Portfolio Overview" in content:
+                print("   ✅ List properties returns markdown formatted data")
+            else:
+                print("   ❌ List properties format incorrect")
+        
+        # Test get_property_overview tool
+        success, properties = self.run_test("Get Properties for MCP Test", "GET", "/properties", 200)
+        if success and isinstance(properties, list) and len(properties) > 0:
+            property_id = properties[0].get('property_id')
+            if property_id:
+                mcp_property_overview = {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                        "name": "get_property_overview",
+                        "arguments": {"property_id": property_id}
+                    },
+                    "id": 4
+                }
+                success, response = self.run_test("MCP Property Overview", "POST", "/mcp", 200, mcp_property_overview)
+                if success and 'result' in response:
+                    content = response['result']['content'][0]['text']
+                    if "Overview" in content and "Revenue" in content:
+                        print("   ✅ Property overview returns detailed data")
+                    else:
+                        print("   ❌ Property overview format incorrect")
+                
+                # Test simulate_floor_closure tool
+                mcp_floor_closure = {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                        "name": "simulate_floor_closure",
+                        "arguments": {
+                            "property_id": property_id,
+                            "floors_to_close": [3]
+                        }
+                    },
+                    "id": 5
+                }
+                success, response = self.run_test("MCP Floor Closure Simulation", "POST", "/mcp", 200, mcp_floor_closure)
+                if success and 'result' in response:
+                    content = response['result']['content'][0]['text']
+                    if "Simulation" in content and "Savings" in content:
+                        print("   ✅ Floor closure simulation returns savings data")
+                    else:
+                        print("   ❌ Floor closure simulation format incorrect")
+                
+                # Test energy_savings_report tool
+                mcp_energy_report = {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                        "name": "energy_savings_report",
+                        "arguments": {"property_id": property_id}
+                    },
+                    "id": 6
+                }
+                success, response = self.run_test("MCP Energy Savings Report", "POST", "/mcp", 200, mcp_energy_report)
+                if success and 'result' in response:
+                    content = response['result']['content'][0]['text']
+                    if "Energy Savings Report" in content:
+                        print("   ✅ Energy savings report returns scenarios")
+                    else:
+                        print("   ❌ Energy savings report format incorrect")
+                
+                # Test get_recommendations tool
+                mcp_recommendations = {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                        "name": "get_recommendations",
+                        "arguments": {"property_id": property_id}
+                    },
+                    "id": 7
+                }
+                success, response = self.run_test("MCP AI Recommendations", "POST", "/mcp", 200, mcp_recommendations)
+                if success and 'result' in response:
+                    content = response['result']['content'][0]['text']
+                    if "AI Recommendations" in content and "Impact Analysis" in content:
+                        print("   ✅ AI recommendations returns recommendations with impact")
+                    else:
+                        print("   ❌ AI recommendations format incorrect")
+
     def run_all_tests(self):
         """Run all test suites"""
         print("🚀 STARTING PROPTECH API TESTS")
