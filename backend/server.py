@@ -950,24 +950,254 @@ async def get_current_user(request: Request) -> User:
     return User(**user_doc)
 
 
-# ==================== MCP ENDPOINT ====================
+# ==================== MCP ENDPOINT (ROOT-LEVEL, NO AUTH) ====================
 
-@api_router.post("/mcp")
+@app.post("/mcp")
 async def mcp_endpoint(request: MCPRequest):
     """
     MCP (Model Context Protocol) endpoint for AI assistant integration.
+    Root-level endpoint at /mcp - No authentication required.
     Supports JSON-RPC style requests for property analytics tools.
+    
+    Response format follows MCP standard:
+    {
+        "jsonrpc": "2.0",
+        "id": "...",
+        "result": {
+            "content": [{
+                "type": "text",
+                "text": "...",
+                "annotations": []
+            }],
+            "isError": false
+        }
+    }
     """
     response = MCPHandler.handle_request(request.model_dump())
     return response
 
 
-# ==================== OPENAI MCP SERVER (EXCLUSIVE) ====================
+# ==================== WHATSAPP WEBHOOK ====================
 
-class OpenAIMCPRequest(BaseModel):
-    """Request model for OpenAI MCP endpoint"""
-    jsonrpc: str = "2.0"
-    id: Optional[str] = None
+class WhatsAppMessageRequest(BaseModel):
+    """Request model for sending WhatsApp messages"""
+    to_number: str
+    message: str
+
+@app.post("/whatsapp/webhook")
+async def whatsapp_webhook(
+    request: Request,
+    Body: str = Form(default=""),
+    From: str = Form(default="")
+):
+    """
+    Twilio WhatsApp webhook endpoint.
+    Receives incoming WhatsApp messages and responds with property analytics.
+    No authentication required for webhook.
+    
+    Workflow:
+    1. Parse incoming message
+    2. Detect property name
+    3. Call analytics engine
+    4. Respond with formatted result
+    """
+    try:
+        # Parse incoming message
+        message_body = Body.lower().strip()
+        sender_phone = From.replace("whatsapp:", "")
+        
+        logger.info(f"WhatsApp message from {sender_phone}: {message_body}")
+        
+        # Get all properties for matching
+        properties = property_store.get_all()
+        
+        # Try to match property name
+        matched_property = None
+        for prop in properties:
+            prop_name_lower = prop["name"].lower()
+            if prop_name_lower in message_body or any(word in message_body for word in prop_name_lower.split()):
+                matched_property = prop
+                break
+        
+        # Generate response based on match
+        if matched_property:
+            # Get analytics for matched property
+            digital_twin = matched_property.get("digital_twin", {})
+            daily_data = digital_twin.get("daily_history", [])
+            recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+            
+            financials = IntelligenceEngine.calculate_financials(matched_property, recent_occupancy)
+            efficiency_score = IntelligenceEngine.calculate_efficiency_score(matched_property)
+            utilization = IntelligenceEngine.classify_utilization(recent_occupancy)
+            recommendations = IntelligenceEngine.generate_recommendations(matched_property)
+            
+            # Format response
+            response_text = f"""📊 *{matched_property['name']} Analytics*
+
+📍 *Location:* {matched_property['location']}
+🏢 *Type:* {matched_property['type']}
+
+📈 *Key Metrics:*
+• Occupancy: {round(recent_occupancy * 100, 1)}%
+• Utilization: {utilization}
+• Efficiency Score: {efficiency_score}%
+
+💰 *Financials:*
+• Revenue: {whatsapp_service.format_currency_inr(financials['revenue'])}
+• Profit: {whatsapp_service.format_currency_inr(financials['profit'])}
+• Energy Cost: {whatsapp_service.format_currency_inr(financials['energy_cost'])}
+
+"""
+            if recommendations:
+                top_rec = recommendations[0]
+                response_text += f"""💡 *Top Recommendation:*
+{top_rec['title']}
+Impact: {whatsapp_service.format_currency_inr(top_rec['financial_impact'])}/month"""
+        
+        elif "list" in message_body or "properties" in message_body or "all" in message_body:
+            # List all properties
+            response_text = "📋 *Property Portfolio:*\n\n"
+            for prop in properties:
+                digital_twin = prop.get("digital_twin", {})
+                daily_data = digital_twin.get("daily_history", [])
+                recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+                
+                response_text += f"• *{prop['name']}* ({prop['location']})\n"
+                response_text += f"  Occupancy: {round(recent_occupancy * 100, 1)}%\n\n"
+            
+            response_text += "\nReply with a property name for detailed analytics."
+        
+        elif "help" in message_body:
+            response_text = """🤖 *PropTech Copilot Help*
+
+Available commands:
+• *list* - Show all properties
+• *[property name]* - Get property analytics
+• *help* - Show this message
+
+Example: "Horizon Tech Park" """
+        
+        else:
+            # Default response
+            response_text = f"""👋 Welcome to PropTech Copilot!
+
+I can help you with property analytics.
+
+📋 Available properties:
+"""
+            for prop in properties:
+                response_text += f"• {prop['name']}\n"
+            
+            response_text += "\nReply with a property name or 'help' for commands."
+        
+        # Return TwiML response
+        twiml_response = whatsapp_service.create_webhook_response(response_text)
+        return PlainTextResponse(content=twiml_response, media_type="application/xml")
+        
+    except Exception as e:
+        logger.error(f"WhatsApp webhook error: {e}")
+        error_response = whatsapp_service.create_webhook_response(
+            "Sorry, an error occurred. Please try again."
+        )
+        return PlainTextResponse(content=error_response, media_type="application/xml")
+
+
+@api_router.post("/whatsapp/send")
+async def send_whatsapp_message(request: WhatsAppMessageRequest, user: User = Depends(get_current_user)):
+    """
+    Send a WhatsApp message (authenticated endpoint).
+    Requires Twilio credentials to be configured.
+    """
+    result = whatsapp_service.send_whatsapp_message(request.to_number, request.message)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to send message"))
+    
+    return result
+
+
+@api_router.post("/whatsapp/alert")
+async def send_property_alert(
+    property_id: str,
+    to_number: str,
+    user: User = Depends(get_current_user)
+):
+    """
+    Send property alerts via WhatsApp.
+    Checks for alert conditions and sends if thresholds exceeded:
+    - Occupancy > 90%
+    - Utilization < 40%
+    - Energy spike > 15%
+    """
+    prop = property_store.get_by_id(property_id)
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    # Get current metrics
+    digital_twin = prop.get("digital_twin", {})
+    daily_data = digital_twin.get("daily_history", [])
+    
+    if len(daily_data) < 2:
+        raise HTTPException(status_code=400, detail="Insufficient data for alert analysis")
+    
+    recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+    utilization = recent_occupancy  # Simplified utilization calculation
+    
+    # Calculate energy change
+    recent_energy = sum(d.get("energy_kwh", 0) for d in daily_data[-7:])
+    prev_energy = sum(d.get("energy_kwh", 0) for d in daily_data[-14:-7]) if len(daily_data) >= 14 else recent_energy
+    energy_change = ((recent_energy - prev_energy) / prev_energy * 100) if prev_energy > 0 else 0
+    
+    financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+    
+    # Check for alerts
+    alerts = whatsapp_service.check_and_generate_alerts(
+        property_name=prop["name"],
+        occupancy_rate=recent_occupancy,
+        utilization_rate=utilization,
+        energy_change_percent=energy_change,
+        financials=financials
+    )
+    
+    if not alerts:
+        return {"message": "No alerts triggered", "alerts_sent": 0}
+    
+    # Send alerts
+    sent_alerts = []
+    for alert in alerts:
+        message = whatsapp_service.format_property_alert(
+            property_name=alert["property_name"],
+            alert_type=alert["type"],
+            metric_value=alert["metric_value"],
+            financial_impact=alert["financial_impact"],
+            suggested_action=alert["suggested_action"]
+        )
+        
+        result = whatsapp_service.send_whatsapp_message(to_number, message)
+        sent_alerts.append({
+            "alert_type": alert["type"],
+            "sent": result["success"],
+            "message_sid": result.get("message_sid")
+        })
+    
+    return {
+        "message": f"Sent {len([a for a in sent_alerts if a['sent']])} alerts",
+        "alerts": sent_alerts
+    }
+
+
+@api_router.get("/whatsapp/status")
+async def whatsapp_status():
+    """Check WhatsApp service configuration status"""
+    return {
+        "configured": whatsapp_service.is_configured,
+        "account_sid_set": bool(os.environ.get("TWILIO_ACCOUNT_SID")),
+        "auth_token_set": bool(os.environ.get("TWILIO_AUTH_TOKEN")),
+        "whatsapp_number_set": bool(os.environ.get("TWILIO_WHATSAPP_NUMBER"))
+    }
+
+
+# ==================== AUTH ROUTES ====================
     method: str
     params: Optional[Dict[str, Any]] = None
 
