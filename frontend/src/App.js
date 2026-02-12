@@ -17,9 +17,6 @@ export const API = `${BACKEND_URL}/api`;
 // Auth Context
 export const AuthContext = React.createContext(null);
 
-// Theme Context
-export const ThemeContext = React.createContext(null);
-
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 
 function AuthCallback() {
@@ -44,7 +41,6 @@ function AuthCallback() {
             { withCredentials: true }
           );
           
-          // Clear hash and navigate to dashboard with user data
           window.history.replaceState(null, '', window.location.pathname);
           navigate('/dashboard', { state: { user: response.data.user }, replace: true });
         } catch (error) {
@@ -62,8 +58,8 @@ function AuthCallback() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Authenticating...</p>
+        <div className="loading-spinner mx-auto mb-4"></div>
+        <p className="text-muted-foreground animate-pulse">Authenticating...</p>
       </div>
     </div>
   );
@@ -76,7 +72,6 @@ function ProtectedRoute({ children }) {
   const location = useLocation();
 
   useEffect(() => {
-    // If user was passed from AuthCallback, use it
     if (location.state?.user) {
       setUser(location.state.user);
       setIsAuthenticated(true);
@@ -103,8 +98,8 @@ function ProtectedRoute({ children }) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <div className="loading-spinner mx-auto mb-4"></div>
+          <p className="text-muted-foreground animate-pulse">Loading...</p>
         </div>
       </div>
     );
@@ -124,7 +119,6 @@ function ProtectedRoute({ children }) {
 function AppRouter() {
   const location = useLocation();
   
-  // Check URL fragment for session_id synchronously during render
   if (location.hash?.includes('session_id=')) {
     return <AuthCallback />;
   }
@@ -174,29 +168,13 @@ function AppRouter() {
 }
 
 function App() {
-  const [theme, setTheme] = useState('dark');
-
-  useEffect(() => {
-    // Set dark mode as default
-    document.documentElement.classList.remove('light');
-    if (theme === 'light') {
-      document.documentElement.classList.add('light');
-    }
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  };
-
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      <div className="min-h-screen bg-background">
-        <BrowserRouter>
-          <AppRouter />
-        </BrowserRouter>
-        <Toaster position="top-right" richColors />
-      </div>
-    </ThemeContext.Provider>
+    <div className="min-h-screen bg-background">
+      <BrowserRouter>
+        <AppRouter />
+      </BrowserRouter>
+      <Toaster position="top-right" richColors theme="dark" />
+    </div>
   );
 }
 
