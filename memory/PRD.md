@@ -2,20 +2,32 @@
 
 ## Latest Update: February 12, 2026
 
-### New Feature: OpenAI-Exclusive MCP Server
-Added Model Context Protocol server that routes ALL model inference requests exclusively to OpenAI GPT-5.2.
+### Upgrade: Clean MCP Implementation & WhatsApp Integration
 
-**Endpoints:**
-- `POST /api/mcp/openai` - MCP JSON-RPC endpoint
-- `POST /api/mcp/openai/chat/completions` - Direct chat completions
+**Changes Made:**
+1. **MCP Endpoint Cleanup**
+   - Moved MCP to root-level `/mcp` (also accessible at `/api/mcp` for external access)
+   - Updated response format with `annotations: []` and `isError` fields
+   - Removed OpenAI-exclusive MCP server and related endpoints
+   - MCP reuses existing analytics engine functions
+   - MCP does NOT require authentication
 
-**Features:**
-- Single-provider architecture (OpenAI only)
-- Multi-turn conversation support
-- Session-based tracking
-- JSON-RPC 2.0 compliant
+2. **Twilio WhatsApp Integration Added**
+   - New service module: `backend/services/whatsapp_service.py`
+   - Webhook endpoint: `POST /whatsapp/webhook` and `/api/whatsapp/webhook`
+   - Authenticated send endpoint: `POST /api/whatsapp/send`
+   - Property alert system: `POST /api/whatsapp/alert`
+   - Status check: `GET /api/whatsapp/status`
+   
+   **Alert Thresholds:**
+   - High Occupancy: > 90%
+   - Low Utilization: < 40%
+   - Energy Spike: > 15%
 
-**Documentation:** `/app/README-OPENAI-MCP.md`
+   **Environment Variables Required:**
+   - `TWILIO_ACCOUNT_SID`
+   - `TWILIO_AUTH_TOKEN`
+   - `TWILIO_WHATSAPP_NUMBER`
 
 ---
 
