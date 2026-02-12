@@ -1,0 +1,125 @@
+{
+  "design_system": {
+    "identity": {
+      "name": "PropTech Decision Copilot",
+      "tone": "Cyber-Physical, Precision, Authority, Future-Forward",
+      "archetype": "The Performance Pro + Swiss High-Contrast",
+      "theme_mode": "dark",
+      "localization": "en-IN"
+    },
+    "typography": {
+      "font_family": {
+        "headings": "Manrope, sans-serif",
+        "body": "Inter, sans-serif",
+        "data": "JetBrains Mono, monospace"
+      },
+      "scale": {
+        "h1": "text-4xl md:text-5xl font-bold tracking-tight",
+        "h2": "text-3xl font-semibold tracking-tight",
+        "h3": "text-2xl font-semibold",
+        "body_lg": "text-lg leading-relaxed",
+        "body_base": "text-base leading-relaxed",
+        "data_lg": "text-3xl font-mono tracking-tight",
+        "data_sm": "text-sm font-mono"
+      },
+      "rules": "Headings must be tight. Data numbers must be monospaced. Uppercase labels for tiny metadata."
+    },
+    "colors": {
+      "palette": {
+        "background": "#09090B",
+        "surface": "#18181B",
+        "surface_highlight": "#27272A",
+        "border": "#27272A",
+        "primary": "#3B82F6",
+        "primary_gradient": "from-blue-500 to-cyan-400",
+        "secondary": "#64748B",
+        "accent_alert": "#EF4444",
+        "accent_success": "#10B981",
+        "text_primary": "#F8FAFC",
+        "text_secondary": "#94A3B8"
+      },
+      "gradients": {
+        "beam": "bg-gradient-to-r from-transparent via-blue-500 to-transparent",
+        "card_hover": "hover:bg-gradient-to-br hover:from-white/5 hover:to-transparent"
+      },
+      "rules": "Dark mode default. No purple/teal CTAs. Use gradients for borders/active states, not backgrounds."
+    },
+    "layout": {
+      "grid_system": "Bento Grid: grid-cols-1 md:grid-cols-4 lg:grid-cols-12 gap-6",
+      "spacing": "Generous padding (p-6, p-8) inside cards. Tight gaps (gap-4) for data density.",
+      "container": "max-w-[1600px] mx-auto px-4 md:px-8",
+      "z_index": {
+        "base": "z-0",
+        "overlay": "z-40",
+        "modal": "z-50",
+        "toast": "z-100"
+      }
+    },
+    "components": {
+      "buttons": {
+        "primary": "bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all",
+        "ghost": "hover:bg-white/10 text-white"
+      },
+      "cards": {
+        "default": "bg-zinc-900/50 border border-white/10 backdrop-blur-md rounded-xl p-6 hover:border-blue-500/30 transition-colors",
+        "glass": "bg-black/40 backdrop-blur-xl border border-white/10"
+      },
+      "inputs": {
+        "default": "bg-zinc-950 border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg"
+      }
+    },
+    "visual_enhancers": {
+      "glassmorphism": "backdrop-blur-xl bg-black/40 border-white/10",
+      "glow_effects": "shadow-[0_0_30px_rgba(59,130,246,0.15)]",
+      "borders": "1px solid rgba(255,255,255,0.08)",
+      "animations": {
+        "hover": "transform hover:-translate-y-1 transition-transform duration-300",
+        "fade_in": "animate-in fade-in zoom-in duration-500"
+      }
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px. Size 16px-24px usually."
+    }
+  },
+  "pages": {
+    "dashboard": {
+      "layout": "Bento Grid",
+      "sections": [
+        "KPI Cards (Animated Counters)",
+        "Portfolio Utilization Map",
+        "Energy Efficiency Trends (Chart)",
+        "Alerts Feed"
+      ]
+    },
+    "portfolio": {
+      "layout": "Data Grid / List",
+      "features": ["Property List", "Status Badges", "Efficiency Score"]
+    },
+    "property_detail": {
+      "layout": "Split View (Sidebar Info + Main Visual)",
+      "features": ["Digital Twin (SVG Floor Plan)", "Real-time Metrics", "Closure Simulator"]
+    }
+  },
+  "assets": {
+    "images": {
+      "login_bg": "https://images.unsplash.com/photo-1762279389006-43963a0cee55?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "office_exterior": "https://images.unsplash.com/photo-1760246964044-1384f71665b9?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "office_interior": "https://images.unsplash.com/photo-1724906019900-601545c07107?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "team_avatars": [
+        "https://images.unsplash.com/photo-1650784854790-fb6c2ed400d3?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "https://images.pexels.com/photos/33871730/pexels-photo-33871730.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      ]
+    }
+  },
+  "instructions_to_main_agent": [
+    "Install 'lucide-react', 'recharts', 'framer-motion', 'clsx', 'tailwind-merge' if missing.",
+    "Use 'Intl.NumberFormat('en-IN', ...)' for all currency displays.",
+    "Implement 'Executive Mode' as a global state toggle that simplifies the UI.",
+    "For the Floor Plan, use a custom SVG component with 'framer-motion' for hover effects on rooms.",
+    "Ensure Dark Mode is default in 'tailwind.config.js'.",
+    "Use 'sonner' for notifications.",
+    "Avoid gradients on text to ensure readability.",
+    "Do not use generic 'Inter' for headings; import 'Manrope' from Google Fonts."
+  ]
+}
