@@ -110,13 +110,33 @@ export default function ExecutiveSummary() {
             Strategic overview across {executiveData?.properties_analyzed || 0} properties
           </p>
         </div>
-        <Button 
-          onClick={() => navigate('/simulator')}
-          className="bg-blue-600 hover:bg-blue-500"
-        >
-          Optimize Portfolio
-          <ChevronRight className="w-4 h-4 ml-2" />
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            onClick={downloadPDF}
+            disabled={downloading}
+            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 transition-all duration-300 hover:scale-105"
+            data-testid="download-pdf-btn"
+          >
+            {downloading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                Download Summary PDF
+              </>
+            )}
+          </Button>
+          <Button 
+            onClick={() => navigate('/simulator')}
+            className="bg-blue-600 hover:bg-blue-500"
+          >
+            Optimize Portfolio
+            <ChevronRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
       </div>
 
       {/* Key Metrics */}
