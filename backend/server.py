@@ -1022,6 +1022,18 @@ async def get_executive_summary(user: User = Depends(get_current_user)):
     }
 
 
+@api_router.get("/copilot/{property_id}")
+async def get_copilot_insight(property_id: str, user: User = Depends(get_current_user)):
+    """Get copilot-style insight for a property"""
+    prop = property_store.get_by_id(property_id)
+    
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    insight = IntelligenceEngine.generate_copilot_insight(prop)
+    return insight
+
+
 # ==================== ROOT ROUTES ====================
 
 @api_router.get("/")
