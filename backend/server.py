@@ -1198,26 +1198,8 @@ async def whatsapp_status():
 
 
 # ==================== AUTH ROUTES ====================
-    method: str
-    params: Optional[Dict[str, Any]] = None
 
-class OpenAIChatRequest(BaseModel):
-    """Request model for chat completions"""
-    messages: List[Dict[str, str]]
-    session_id: Optional[str] = None
-    system_message: Optional[str] = "You are a helpful AI assistant powered by OpenAI GPT-5.2."
-    temperature: Optional[float] = 0.7
-    max_tokens: Optional[int] = 4096
-
-class OpenAIMCPServer:
-    """
-    OpenAI-Exclusive MCP Server
-    Routes ALL model inference requests to OpenAI ChatGPT API ONLY.
-    Single-provider architecture - No multi-model routing.
-    """
-    
-    MCP_VERSION = "1.0.0"
-    SERVER_NAME = "openai-mcp-server"
+@api_router.post("/auth/session")
     PROVIDER = "openai"
     MODEL = "gpt-5.2"
     
