@@ -319,6 +319,7 @@ class PropTechAPITester:
         self.test_property_endpoints()
         self.test_analytics_endpoints()
         self.test_recommendations_endpoints()
+        self.test_mcp_endpoints()  # NEW: Test MCP integration
         
         # Print final results
         self.print_results()
