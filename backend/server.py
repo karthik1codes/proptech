@@ -1080,7 +1080,7 @@ Example: "Horizon Tech Park" """
         
         else:
             # Default response
-            response_text = f"""👋 Welcome to PropTech Copilot!
+            response_text = """👋 Welcome to PropTech Copilot!
 
 I can help you with property analytics.
 
