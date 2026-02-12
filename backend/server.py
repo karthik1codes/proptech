@@ -1006,16 +1006,28 @@ async def _handle_whatsapp_webhook(body: str, from_number: str):
     """
     Internal handler for WhatsApp webhook.
     Reused by both root and api-prefixed endpoints.
+    Features: Message templates, conversation history persistence.
     """
     try:
         # Parse incoming message
         message_body = body.lower().strip()
+        original_body = body.strip()
         sender_phone = from_number.replace("whatsapp:", "")
         
         logger.info(f"WhatsApp message from {sender_phone}: {message_body}")
         
+        # Save incoming message to conversation history
+        await conversation_history.add_message(
+            phone_number=sender_phone,
+            direction="inbound",
+            message_body=original_body,
+            message_type="text",
+            metadata={"command": message_body}
+        )
+        
         # Get all properties for matching
         properties = property_store.get_all()
+        templates = MessageTemplates()
         
         # Try to match property name
         matched_property = None
@@ -1037,70 +1049,153 @@ async def _handle_whatsapp_webhook(body: str, from_number: str):
             utilization = IntelligenceEngine.classify_utilization(recent_occupancy)
             recommendations = IntelligenceEngine.generate_recommendations(matched_property)
             
-            # Format response
-            response_text = f"""📊 *{matched_property['name']} Analytics*
-
-📍 *Location:* {matched_property['location']}
-🏢 *Type:* {matched_property['type']}
-
-📈 *Key Metrics:*
-• Occupancy: {round(recent_occupancy * 100, 1)}%
-• Utilization: {utilization}
-• Efficiency Score: {efficiency_score}%
-
-💰 *Financials:*
-• Revenue: {whatsapp_service.format_currency_inr(financials['revenue'])}
-• Profit: {whatsapp_service.format_currency_inr(financials['profit'])}
-• Energy Cost: {whatsapp_service.format_currency_inr(financials['energy_cost'])}
-
-"""
+            # Use template for property details
+            rec_data = None
             if recommendations:
                 top_rec = recommendations[0]
-                response_text += f"""💡 *Top Recommendation:*
-{top_rec['title']}
-Impact: {whatsapp_service.format_currency_inr(top_rec['financial_impact'])}/month"""
+                rec_data = {
+                    "title": top_rec["title"],
+                    "impact": whatsapp_service.format_currency_inr(top_rec["financial_impact"])
+                }
+            
+            response_text = templates.property_details(
+                name=matched_property["name"],
+                location=matched_property["location"],
+                prop_type=matched_property["type"],
+                occupancy=round(recent_occupancy * 100, 1),
+                utilization=utilization,
+                efficiency=efficiency_score,
+                revenue=whatsapp_service.format_currency_inr(financials["revenue"]),
+                profit=whatsapp_service.format_currency_inr(financials["profit"]),
+                energy_cost=whatsapp_service.format_currency_inr(financials["energy_cost"]),
+                recommendation=rec_data
+            )
+            
+            # Save metadata
+            metadata = {"property_id": matched_property["property_id"], "command": "property_details"}
+        
+        elif "alerts" in message_body:
+            # Check for active alerts across all properties
+            all_alerts = []
+            for prop in properties:
+                digital_twin = prop.get("digital_twin", {})
+                daily_data = digital_twin.get("daily_history", [])
+                
+                if len(daily_data) >= 2:
+                    recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+                    
+                    recent_energy = sum(d.get("energy_kwh", 0) for d in daily_data[-7:])
+                    prev_energy = sum(d.get("energy_kwh", 0) for d in daily_data[-14:-7]) if len(daily_data) >= 14 else recent_energy
+                    energy_change = ((recent_energy - prev_energy) / prev_energy * 100) if prev_energy > 0 else 0
+                    
+                    financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+                    
+                    alerts = whatsapp_service.check_and_generate_alerts(
+                        property_name=prop["name"],
+                        occupancy_rate=recent_occupancy,
+                        utilization_rate=recent_occupancy,
+                        energy_change_percent=energy_change,
+                        financials=financials
+                    )
+                    all_alerts.extend(alerts)
+            
+            response_text = templates.active_alerts(all_alerts, whatsapp_service.format_currency_inr)
+            metadata = {"command": "alerts", "alert_count": len(all_alerts)}
         
         elif "list" in message_body or "properties" in message_body or "all" in message_body:
-            # List all properties
-            response_text = "📋 *Property Portfolio:*\n\n"
+            # List all properties using template
+            prop_list = []
             for prop in properties:
                 digital_twin = prop.get("digital_twin", {})
                 daily_data = digital_twin.get("daily_history", [])
                 recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
                 
-                response_text += f"• *{prop['name']}* ({prop['location']})\n"
-                response_text += f"  Occupancy: {round(recent_occupancy * 100, 1)}%\n\n"
+                prop_list.append({
+                    "name": prop["name"],
+                    "location": prop["location"],
+                    "occupancy": round(recent_occupancy * 100, 1)
+                })
             
-            response_text += "\nReply with a property name for detailed analytics."
+            response_text = templates.property_list(prop_list, whatsapp_service.format_currency_inr)
+            metadata = {"command": "list"}
         
         elif "help" in message_body:
-            response_text = """🤖 *PropTech Copilot Help*
+            response_text = templates.help_menu()
+            metadata = {"command": "help"}
+        
+        elif "subscribe" in message_body:
+            # Subscribe to alerts
+            from services.alert_scheduler import alert_scheduler
+            if alert_scheduler:
+                result = await alert_scheduler.subscribe(sender_phone)
+                if result["success"]:
+                    response_text = """✅ *Subscribed to Alerts*
 
-Available commands:
-• *list* - Show all properties
-• *[property name]* - Get property analytics
-• *help* - Show this message
+You will now receive automated alerts for:
+• High Occupancy (>90%)
+• Low Utilization (<40%)
+• Energy Spikes (>15%)
 
-Example: "Horizon Tech Park" """
+_Reply 'unsubscribe' to stop alerts._"""
+                else:
+                    response_text = f"❌ Failed to subscribe: {result.get('error', 'Unknown error')}"
+            else:
+                response_text = "⚠️ Alert service is not available."
+            metadata = {"command": "subscribe"}
+        
+        elif "unsubscribe" in message_body:
+            # Unsubscribe from alerts
+            from services.alert_scheduler import alert_scheduler
+            if alert_scheduler:
+                result = await alert_scheduler.unsubscribe(sender_phone)
+                if result["success"]:
+                    response_text = """✅ *Unsubscribed from Alerts*
+
+You will no longer receive automated property alerts.
+
+_Reply 'subscribe' to re-enable alerts._"""
+                else:
+                    response_text = "❌ You are not currently subscribed to alerts."
+            else:
+                response_text = "⚠️ Alert service is not available."
+            metadata = {"command": "unsubscribe"}
+        
+        elif "status" in message_body:
+            # System status
+            from services.alert_scheduler import alert_scheduler
+            scheduler_status = "Running" if alert_scheduler and alert_scheduler.is_running else "Stopped"
+            subs_count = len(await alert_scheduler.get_all_active_subscriptions()) if alert_scheduler else 0
+            
+            response_text = f"""🔧 *System Status*
+
+━━━━━━━━━━━━━━━━━━
+📊 *WhatsApp Service:* {"✅ Active" if whatsapp_service.is_configured else "❌ Not Configured"}
+⏰ *Alert Scheduler:* {scheduler_status}
+👥 *Active Subscribers:* {subs_count}
+🏢 *Properties Monitored:* {len(properties)}
+
+_Reply 'help' for available commands._"""
+            metadata = {"command": "status"}
         
         else:
-            # Default response
-            response_text = """👋 Welcome to PropTech Copilot!
-
-I can help you with property analytics.
-
-📋 Available properties:
-"""
-            for prop in properties:
-                response_text += f"• {prop['name']}\n"
-            
-            response_text += "\nReply with a property name or 'help' for commands."
+            # Default welcome response
+            response_text = templates.welcome()
+            metadata = {"command": "welcome"}
+        
+        # Save outbound message to conversation history
+        await conversation_history.add_message(
+            phone_number=sender_phone,
+            direction="outbound",
+            message_body=response_text[:500],  # Truncate for storage
+            message_type="template",
+            metadata=metadata
+        )
         
         return response_text
         
     except Exception as e:
         logger.error(f"WhatsApp webhook error: {e}")
-        return "Sorry, an error occurred. Please try again."
+        return MessageTemplates.error_message()
 
 
 @app.post("/whatsapp/webhook")
