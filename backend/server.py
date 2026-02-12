@@ -2401,6 +2401,130 @@ async def download_executive_pdf(user: User = Depends(get_current_user)):
     )
 
 
+@api_router.get("/reports/executive-summary-full/pdf")
+async def download_executive_full_pdf(user: User = Depends(get_current_user)):
+    """
+    Generate and download comprehensive executive summary PDF.
+    
+    Includes:
+    - Savings potential (monthly/annual)
+    - Carbon reduction
+    - Efficiency gains
+    - Top strategic actions
+    - Portfolio benchmarking
+    - High/Low performing properties
+    """
+    global _pdf_generator
+    if not _pdf_generator:
+        raise HTTPException(status_code=503, detail="PDF generator not available")
+    
+    try:
+        # Fetch executive data
+        properties = property_store.get_all()
+        
+        # Calculate executive data
+        total_monthly_savings = 0
+        total_annual_savings = 0
+        total_carbon = 0
+        total_efficiency = 0
+        top_actions = []
+        
+        for prop in properties:
+            insight = IntelligenceEngine.generate_copilot_insight(prop)
+            recommendations = IntelligenceEngine.generate_recommendations(prop)
+            
+            total_monthly_savings += insight.get("monthly_savings", 0)
+            total_carbon += insight.get("carbon_impact_kg", 0)
+            total_efficiency += insight.get("efficiency_score_change", {}).get("improvement", 0)
+            
+            # Get top action for this property
+            if recommendations:
+                top_rec = max(recommendations, key=lambda x: x.get("financial_impact", 0))
+                top_actions.append({
+                    "property_name": prop["name"],
+                    "action": top_rec.get("title", ""),
+                    "type": top_rec.get("type", "optimization"),
+                    "impact": top_rec.get("financial_impact", 0)
+                })
+        
+        total_annual_savings = total_monthly_savings * 12
+        avg_efficiency = total_efficiency / len(properties) if properties else 0
+        
+        # Sort and limit top actions
+        top_actions = sorted(top_actions, key=lambda x: x["impact"], reverse=True)[:5]
+        
+        # Create executive data structure
+        executive_data = {
+            "total_projected_monthly_savings": total_monthly_savings,
+            "total_projected_annual_savings": total_annual_savings,
+            "total_carbon_reduction_kg": total_carbon,
+            "avg_efficiency_improvement": avg_efficiency,
+            "properties_analyzed": len(properties),
+            "top_strategic_actions": top_actions,
+            "executive_insight": f"Your portfolio of {len(properties)} properties has significant optimization potential. "
+                                f"By implementing the recommended actions, you can achieve monthly savings of "
+                                f"₹{total_monthly_savings:,.0f} and reduce carbon emissions by {total_carbon:,.0f} kg annually."
+        }
+        
+        # Get benchmark data
+        benchmarks = []
+        for prop in properties:
+            digital_twin = prop.get("digital_twin", {})
+            daily_data = digital_twin.get("daily_history", [])
+            recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+            
+            financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+            efficiency = IntelligenceEngine.calculate_efficiency_score(prop)
+            
+            benchmarks.append({
+                "property_id": prop["property_id"],
+                "name": prop["name"],
+                "location": prop["location"],
+                "occupancy_rate": recent_occupancy,
+                "profit_rank": 1,  # Will be calculated below
+                "energy_efficiency_rank": 1,
+                "sustainability_score_rank": 1,
+                "carbon_rank": 1,
+                "profit": financials["profit"],
+                "efficiency": efficiency
+            })
+        
+        # Calculate rankings
+        benchmarks_sorted_profit = sorted(benchmarks, key=lambda x: x["profit"], reverse=True)
+        benchmarks_sorted_efficiency = sorted(benchmarks, key=lambda x: x["efficiency"], reverse=True)
+        
+        for i, b in enumerate(benchmarks_sorted_profit, 1):
+            for bench in benchmarks:
+                if bench["property_id"] == b["property_id"]:
+                    bench["profit_rank"] = i
+                    bench["carbon_rank"] = i  # Using same as profit for simplicity
+                    break
+        
+        for i, b in enumerate(benchmarks_sorted_efficiency, 1):
+            for bench in benchmarks:
+                if bench["property_id"] == b["property_id"]:
+                    bench["energy_efficiency_rank"] = i
+                    bench["sustainability_score_rank"] = i
+                    break
+        
+        # Generate comprehensive PDF
+        pdf_bytes = _pdf_generator.generate_executive_summary_full(
+            executive_data=executive_data,
+            benchmarks=benchmarks,
+            properties=properties
+        )
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=PropTech_Executive_Summary.pdf"}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating executive PDF: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+
+
 @api_router.get("/reports/energy/{property_id}/pdf")
 async def download_energy_pdf(
     property_id: str,
