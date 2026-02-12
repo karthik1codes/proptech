@@ -1769,6 +1769,46 @@ app.add_middleware(
 )
 
 
+# Global alert scheduler instance
+_alert_scheduler = None
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup."""
+    global _alert_scheduler
+    
+    # Create indexes for conversation history
+    await conversation_history.ensure_indexes()
+    
+    # Initialize alert scheduler
+    _alert_scheduler = init_alert_scheduler(
+        db=db,
+        whatsapp_service=whatsapp_service,
+        property_store=property_store,
+        intelligence_engine=IntelligenceEngine,
+        check_interval=int(os.environ.get("ALERT_CHECK_INTERVAL", 1800))  # 30 min default
+    )
+    
+    # Create indexes for alert scheduler
+    await _alert_scheduler.ensure_indexes()
+    
+    # Start the scheduled alert checker (runs in background)
+    _alert_scheduler.start()
+    
+    logger.info("PropTech Decision Copilot started - Alert scheduler active")
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    """Cleanup on shutdown."""
+    global _alert_scheduler
+    
+    # Stop alert scheduler
+    if _alert_scheduler:
+        _alert_scheduler.stop()
+        logger.info("Alert scheduler stopped")
+    
+    # Close MongoDB connection
     client.close()
+    logger.info("MongoDB connection closed")
