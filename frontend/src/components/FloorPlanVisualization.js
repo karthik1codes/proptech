@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { formatPercent } from '../utils/formatters';
 
 /**
@@ -10,6 +10,12 @@ export default function FloorPlanVisualization({ floorData = [], floors = 1 }) {
   const [selectedFloor, setSelectedFloor] = useState(1);
   const [hoveredRoom, setHoveredRoom] = useState(null);
 
+  // Debug: log props on mount and when they change
+  useEffect(() => {
+    console.log('FloorPlanVisualization - floorData:', floorData);
+    console.log('FloorPlanVisualization - floors:', floors);
+  }, [floorData, floors]);
+
   const getOccupancyColor = (occupancy, capacity) => {
     const rate = capacity > 0 ? occupancy / capacity : 0;
     if (rate < 0.4) return { fill: 'rgba(239, 68, 68, 0.3)', stroke: '#EF4444', status: 'Underutilized' };
@@ -17,7 +23,8 @@ export default function FloorPlanVisualization({ floorData = [], floors = 1 }) {
     return { fill: 'rgba(245, 158, 11, 0.3)', stroke: '#F59E0B', status: 'Overloaded' };
   };
 
-  const currentFloorData = floorData.find(f => f.floor_number === selectedFloor);
+  // Find the current floor data
+  const currentFloorData = floorData?.find(f => f.floor_number === selectedFloor);
   const rooms = currentFloorData?.rooms || [];
 
   // Calculate grid dimensions
@@ -30,6 +37,15 @@ export default function FloorPlanVisualization({ floorData = [], floors = 1 }) {
   const svgWidth = roomsPerRow * (roomWidth + gap) + padding * 2;
   const numRows = rooms.length > 0 ? Math.ceil(rooms.length / roomsPerRow) : 3;
   const svgHeight = numRows * (roomHeight + gap) + padding * 2 + 40;
+
+  // If no floor data, show placeholder
+  if (!floorData || floorData.length === 0) {
+    return (
+      <div className="space-y-4 text-center py-12" data-testid="floor-plan-visualization">
+        <p className="text-muted-foreground">No floor data available</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4" data-testid="floor-plan-visualization">
@@ -53,7 +69,7 @@ export default function FloorPlanVisualization({ floorData = [], floors = 1 }) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-6 text-sm">
+      <div className="flex items-center gap-6 text-sm flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded" style={{ background: 'rgba(239, 68, 68, 0.3)', border: '2px solid #EF4444' }}></div>
           <span className="text-muted-foreground">Underutilized (&lt;40%)</span>
@@ -68,143 +84,72 @@ export default function FloorPlanVisualization({ floorData = [], floors = 1 }) {
         </div>
       </div>
 
-      {/* SVG Floor Plan */}
-      <div className="bg-zinc-900/50 rounded-xl p-4 overflow-x-auto relative">
-        <svg 
-          width={Math.max(svgWidth, 600)} 
-          height={Math.max(svgHeight, 280)}
-          viewBox={`0 0 ${Math.max(svgWidth, 600)} ${Math.max(svgHeight, 280)}`}
-          className="mx-auto"
+      {/* Room Grid - Using divs instead of SVG for better rendering */}
+      <div className="bg-zinc-900/50 rounded-xl p-4 overflow-x-auto">
+        <p className="text-sm text-muted-foreground mb-4">
+          Floor {selectedFloor} - {currentFloorData?.total_capacity || 0} Total Capacity
+        </p>
+        
+        <div 
+          className="grid gap-3 mx-auto"
+          style={{ 
+            gridTemplateColumns: `repeat(${roomsPerRow}, minmax(80px, 1fr))`,
+            maxWidth: roomsPerRow * 100 + 'px'
+          }}
         >
-          {/* Background Grid */}
-          <defs>
-            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-
-          {/* Floor Label */}
-          <text x={padding} y={30} fill="#64748B" fontSize="14" fontWeight="600">
-            Floor {selectedFloor} - {currentFloorData?.total_capacity || 0} Capacity
-          </text>
-
-          {/* Rooms */}
-          {rooms.map((room, idx) => {
-            const row = Math.floor(idx / roomsPerRow);
-            const col = idx % roomsPerRow;
-            const x = padding + col * (roomWidth + gap);
-            const y = 50 + row * (roomHeight + gap);
+          {rooms.map((room) => {
             const colors = getOccupancyColor(room.current_occupancy, room.capacity);
-            const occupancyRate = room.capacity > 0 ? (room.current_occupancy / room.capacity * 100).toFixed(0) : 0;
+            const occupancyRate = room.capacity > 0 
+              ? Math.round((room.current_occupancy / room.capacity) * 100) 
+              : 0;
             const isHovered = hoveredRoom === room.room_id;
 
             return (
-              <g 
+              <div
                 key={room.room_id}
-                className="cursor-pointer"
+                className={`relative p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                  isHovered ? 'transform scale-105 z-10' : ''
+                }`}
+                style={{
+                  background: colors.fill,
+                  border: `2px solid ${colors.stroke}`,
+                  boxShadow: isHovered ? `0 0 20px ${colors.stroke}40` : 'none'
+                }}
                 onMouseEnter={() => setHoveredRoom(room.room_id)}
                 onMouseLeave={() => setHoveredRoom(null)}
-                style={{
-                  transform: isHovered ? 'scale(1.02)' : 'scale(1)',
-                  transformOrigin: `${x + roomWidth/2}px ${y + roomHeight/2}px`,
-                  transition: 'transform 0.2s ease'
-                }}
               >
-                {/* Room Rectangle */}
-                <rect
-                  x={x}
-                  y={y}
-                  width={roomWidth}
-                  height={roomHeight}
-                  rx="6"
-                  fill={colors.fill}
-                  stroke={colors.stroke}
-                  strokeWidth={isHovered ? 2.5 : 1.5}
-                />
-                
-                {/* Room ID */}
-                <text
-                  x={x + roomWidth / 2}
-                  y={y + 18}
-                  fill="#F8FAFC"
-                  fontSize="11"
-                  fontWeight="600"
-                  textAnchor="middle"
-                  style={{ fontFamily: 'JetBrains Mono, monospace' }}
-                >
+                <p className="text-xs font-mono font-semibold text-foreground text-center">
                   {room.room_id}
-                </text>
-                
-                {/* Room Type (truncated) */}
-                <text
-                  x={x + roomWidth / 2}
-                  y={y + 32}
-                  fill="#94A3B8"
-                  fontSize="8"
-                  textAnchor="middle"
-                >
-                  {room.room_type?.substring(0, 10) || 'Room'}
-                </text>
-                
-                {/* Occupancy */}
-                <text
-                  x={x + roomWidth / 2}
-                  y={y + 48}
-                  fill={colors.stroke}
-                  fontSize="12"
-                  fontWeight="600"
-                  textAnchor="middle"
-                  style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                </p>
+                <p className="text-[10px] text-muted-foreground text-center mt-1 truncate">
+                  {room.room_type || 'Room'}
+                </p>
+                <p 
+                  className="text-sm font-mono font-bold text-center mt-1"
+                  style={{ color: colors.stroke }}
                 >
                   {occupancyRate}%
-                </text>
-              </g>
+                </p>
+                
+                {/* Tooltip on hover */}
+                {isHovered && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 bg-zinc-900 border border-border rounded-lg shadow-lg z-50 whitespace-nowrap text-xs">
+                    <p className="font-semibold">{room.room_id}</p>
+                    <p className="text-muted-foreground">{room.room_type}</p>
+                    <p>Capacity: {room.capacity}</p>
+                    <p>Occupied: {room.current_occupancy}</p>
+                    <p style={{ color: colors.stroke }}>{colors.status}</p>
+                  </div>
+                )}
+              </div>
             );
           })}
+        </div>
 
-          {/* Floor Summary */}
-          <text 
-            x={padding} 
-            y={svgHeight - 10} 
-            fill="#64748B" 
-            fontSize="12"
-          >
-            {rooms.length} rooms • {rooms.filter(r => r.current_occupancy / r.capacity >= 0.4 && r.current_occupancy / r.capacity <= 0.85).length} optimal • {rooms.filter(r => r.current_occupancy / r.capacity < 0.4).length} underutilized
-          </text>
-        </svg>
-
-        {/* Hover Tooltip */}
-        {hoveredRoom && (
-          <div 
-            className="absolute z-50 p-3 rounded-lg glass border border-border shadow-xl"
-            style={{
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none'
-            }}
-          >
-            {rooms.filter(r => r.room_id === hoveredRoom).map(room => {
-              const colors = getOccupancyColor(room.current_occupancy, room.capacity);
-              return (
-                <div key={room.room_id} className="space-y-1 text-sm">
-                  <p className="font-semibold">{room.room_id}</p>
-                  <p className="text-muted-foreground">{room.room_type}</p>
-                  <div className="flex justify-between gap-4">
-                    <span>Occupancy:</span>
-                    <span className="font-mono" style={{ color: colors.stroke }}>
-                      {room.current_occupancy} / {room.capacity}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span>Status:</span>
-                    <span style={{ color: colors.stroke }}>{colors.status}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        {rooms.length === 0 && (
+          <p className="text-center text-muted-foreground py-8">
+            No rooms found for Floor {selectedFloor}
+          </p>
         )}
       </div>
 
