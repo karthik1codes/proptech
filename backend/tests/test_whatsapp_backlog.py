@@ -155,8 +155,8 @@ class TestStatusCommand:
 class TestSubscribeCommand:
     """Test 'subscribe' webhook command"""
     
-    def test_subscribe_command_subscribes_to_alerts(self):
-        """Test 'subscribe' command subscribes phone to alerts"""
+    def test_subscribe_command_requires_linking(self):
+        """Test 'subscribe' command requires account linking (multi-user system)"""
         response = requests.post(
             f"{BASE_URL}/api/whatsapp/webhook",
             data={"Body": "subscribe", "From": "whatsapp:+919876543210"},
@@ -168,10 +168,10 @@ class TestSubscribeCommand:
         assert "<Response>" in content
         assert "<Message>" in content
         
-        # Should confirm subscription
-        assert "Subscribed" in content or "subscribe" in content.lower()
+        # Subscribe command requires account linking in multi-user system
+        assert "Account Not Linked" in content or "Link" in content
         
-        print("✅ subscribe command subscribes to alerts")
+        print("✅ subscribe command correctly requires linking")
 
 
 class TestUnsubscribeCommand:
