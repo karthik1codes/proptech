@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { formatPercent } from '../utils/formatters';
 
 /**
@@ -22,14 +21,15 @@ export default function FloorPlanVisualization({ floorData = [], floors = 1 }) {
   const rooms = currentFloorData?.rooms || [];
 
   // Calculate grid dimensions
-  const roomsPerRow = Math.ceil(Math.sqrt(rooms.length));
+  const roomsPerRow = rooms.length > 0 ? Math.ceil(Math.sqrt(rooms.length)) : 4;
   const roomWidth = 80;
   const roomHeight = 60;
   const gap = 10;
   const padding = 20;
 
   const svgWidth = roomsPerRow * (roomWidth + gap) + padding * 2;
-  const svgHeight = Math.ceil(rooms.length / roomsPerRow) * (roomHeight + gap) + padding * 2;
+  const numRows = rooms.length > 0 ? Math.ceil(rooms.length / roomsPerRow) : 3;
+  const svgHeight = numRows * (roomHeight + gap) + padding * 2 + 40;
 
   return (
     <div className="space-y-4" data-testid="floor-plan-visualization">
@@ -69,130 +69,143 @@ export default function FloorPlanVisualization({ floorData = [], floors = 1 }) {
       </div>
 
       {/* SVG Floor Plan */}
-      <div className="bg-zinc-900/50 rounded-xl p-4 overflow-x-auto">
-        <TooltipProvider>
-          <svg 
-            width={Math.max(svgWidth, 600)} 
-            height={Math.max(svgHeight, 300)}
-            viewBox={`0 0 ${Math.max(svgWidth, 600)} ${Math.max(svgHeight, 300)}`}
-            className="mx-auto"
+      <div className="bg-zinc-900/50 rounded-xl p-4 overflow-x-auto relative">
+        <svg 
+          width={Math.max(svgWidth, 600)} 
+          height={Math.max(svgHeight, 280)}
+          viewBox={`0 0 ${Math.max(svgWidth, 600)} ${Math.max(svgHeight, 280)}`}
+          className="mx-auto"
+        >
+          {/* Background Grid */}
+          <defs>
+            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+
+          {/* Floor Label */}
+          <text x={padding} y={30} fill="#64748B" fontSize="14" fontWeight="600">
+            Floor {selectedFloor} - {currentFloorData?.total_capacity || 0} Capacity
+          </text>
+
+          {/* Rooms */}
+          {rooms.map((room, idx) => {
+            const row = Math.floor(idx / roomsPerRow);
+            const col = idx % roomsPerRow;
+            const x = padding + col * (roomWidth + gap);
+            const y = 50 + row * (roomHeight + gap);
+            const colors = getOccupancyColor(room.current_occupancy, room.capacity);
+            const occupancyRate = room.capacity > 0 ? (room.current_occupancy / room.capacity * 100).toFixed(0) : 0;
+            const isHovered = hoveredRoom === room.room_id;
+
+            return (
+              <g 
+                key={room.room_id}
+                className="cursor-pointer"
+                onMouseEnter={() => setHoveredRoom(room.room_id)}
+                onMouseLeave={() => setHoveredRoom(null)}
+                style={{
+                  transform: isHovered ? 'scale(1.02)' : 'scale(1)',
+                  transformOrigin: `${x + roomWidth/2}px ${y + roomHeight/2}px`,
+                  transition: 'transform 0.2s ease'
+                }}
+              >
+                {/* Room Rectangle */}
+                <rect
+                  x={x}
+                  y={y}
+                  width={roomWidth}
+                  height={roomHeight}
+                  rx="6"
+                  fill={colors.fill}
+                  stroke={colors.stroke}
+                  strokeWidth={isHovered ? 2.5 : 1.5}
+                />
+                
+                {/* Room ID */}
+                <text
+                  x={x + roomWidth / 2}
+                  y={y + 18}
+                  fill="#F8FAFC"
+                  fontSize="11"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                >
+                  {room.room_id}
+                </text>
+                
+                {/* Room Type (truncated) */}
+                <text
+                  x={x + roomWidth / 2}
+                  y={y + 32}
+                  fill="#94A3B8"
+                  fontSize="8"
+                  textAnchor="middle"
+                >
+                  {room.room_type?.substring(0, 10) || 'Room'}
+                </text>
+                
+                {/* Occupancy */}
+                <text
+                  x={x + roomWidth / 2}
+                  y={y + 48}
+                  fill={colors.stroke}
+                  fontSize="12"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                >
+                  {occupancyRate}%
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Floor Summary */}
+          <text 
+            x={padding} 
+            y={svgHeight - 10} 
+            fill="#64748B" 
+            fontSize="12"
           >
-            {/* Background Grid */}
-            <defs>
-              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5"/>
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
+            {rooms.length} rooms • {rooms.filter(r => r.current_occupancy / r.capacity >= 0.4 && r.current_occupancy / r.capacity <= 0.85).length} optimal • {rooms.filter(r => r.current_occupancy / r.capacity < 0.4).length} underutilized
+          </text>
+        </svg>
 
-            {/* Floor Label */}
-            <text x={padding} y={30} fill="#64748B" fontSize="14" fontWeight="600">
-              Floor {selectedFloor} - {currentFloorData?.total_capacity || 0} Capacity
-            </text>
-
-            {/* Rooms */}
-            {rooms.map((room, idx) => {
-              const row = Math.floor(idx / roomsPerRow);
-              const col = idx % roomsPerRow;
-              const x = padding + col * (roomWidth + gap);
-              const y = 50 + row * (roomHeight + gap);
+        {/* Hover Tooltip */}
+        {hoveredRoom && (
+          <div 
+            className="absolute z-50 p-3 rounded-lg glass border border-border shadow-xl"
+            style={{
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none'
+            }}
+          >
+            {rooms.filter(r => r.room_id === hoveredRoom).map(room => {
               const colors = getOccupancyColor(room.current_occupancy, room.capacity);
-              const occupancyRate = room.capacity > 0 ? (room.current_occupancy / room.capacity * 100).toFixed(0) : 0;
-
               return (
-                <Tooltip key={room.room_id}>
-                  <TooltipTrigger asChild>
-                    <g 
-                      className="cursor-pointer transition-all duration-200"
-                      onMouseEnter={() => setHoveredRoom(room.room_id)}
-                      onMouseLeave={() => setHoveredRoom(null)}
-                      style={{
-                        transform: hoveredRoom === room.room_id ? 'scale(1.02)' : 'scale(1)',
-                        transformOrigin: `${x + roomWidth/2}px ${y + roomHeight/2}px`
-                      }}
-                    >
-                      {/* Room Rectangle */}
-                      <rect
-                        x={x}
-                        y={y}
-                        width={roomWidth}
-                        height={roomHeight}
-                        rx="6"
-                        fill={colors.fill}
-                        stroke={colors.stroke}
-                        strokeWidth={hoveredRoom === room.room_id ? 2 : 1.5}
-                        className="transition-all duration-200"
-                      />
-                      
-                      {/* Room ID */}
-                      <text
-                        x={x + roomWidth / 2}
-                        y={y + 18}
-                        fill="#F8FAFC"
-                        fontSize="11"
-                        fontWeight="600"
-                        textAnchor="middle"
-                        fontFamily="JetBrains Mono, monospace"
-                      >
-                        {room.room_id}
-                      </text>
-                      
-                      {/* Room Type (truncated) */}
-                      <text
-                        x={x + roomWidth / 2}
-                        y={y + 32}
-                        fill="#94A3B8"
-                        fontSize="8"
-                        textAnchor="middle"
-                      >
-                        {room.room_type.substring(0, 10)}
-                      </text>
-                      
-                      {/* Occupancy */}
-                      <text
-                        x={x + roomWidth / 2}
-                        y={y + 48}
-                        fill={colors.stroke}
-                        fontSize="12"
-                        fontWeight="600"
-                        textAnchor="middle"
-                        fontFamily="JetBrains Mono, monospace"
-                      >
-                        {occupancyRate}%
-                      </text>
-                    </g>
-                  </TooltipTrigger>
-                  <TooltipContent className="glass p-3">
-                    <div className="space-y-1">
-                      <p className="font-semibold">{room.room_id}</p>
-                      <p className="text-sm text-muted-foreground">{room.room_type}</p>
-                      <div className="flex justify-between gap-4 text-sm">
-                        <span>Occupancy:</span>
-                        <span className="font-mono" style={{ color: colors.stroke }}>
-                          {room.current_occupancy} / {room.capacity}
-                        </span>
-                      </div>
-                      <div className="flex justify-between gap-4 text-sm">
-                        <span>Status:</span>
-                        <span style={{ color: colors.stroke }}>{colors.status}</span>
-                      </div>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
+                <div key={room.room_id} className="space-y-1 text-sm">
+                  <p className="font-semibold">{room.room_id}</p>
+                  <p className="text-muted-foreground">{room.room_type}</p>
+                  <div className="flex justify-between gap-4">
+                    <span>Occupancy:</span>
+                    <span className="font-mono" style={{ color: colors.stroke }}>
+                      {room.current_occupancy} / {room.capacity}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span>Status:</span>
+                    <span style={{ color: colors.stroke }}>{colors.status}</span>
+                  </div>
+                </div>
               );
             })}
-
-            {/* Floor Summary */}
-            <text 
-              x={padding} 
-              y={svgHeight - 10} 
-              fill="#64748B" 
-              fontSize="12"
-            >
-              {rooms.length} rooms • {rooms.filter(r => r.current_occupancy / r.capacity >= 0.4 && r.current_occupancy / r.capacity <= 0.85).length} optimal • {rooms.filter(r => r.current_occupancy / r.capacity < 0.4).length} underutilized
-            </text>
-          </svg>
-        </TooltipProvider>
+          </div>
+        )}
       </div>
 
       {/* Room Stats */}
@@ -215,7 +228,10 @@ export default function FloorPlanVisualization({ floorData = [], floors = 1 }) {
           <div className="p-3 rounded-lg bg-zinc-900/50">
             <p className="text-xs text-muted-foreground">Utilization Rate</p>
             <p className="text-xl font-bold font-mono">
-              {formatPercent(rooms.reduce((sum, r) => sum + r.current_occupancy, 0) / currentFloorData.total_capacity)}
+              {currentFloorData.total_capacity > 0 
+                ? formatPercent(rooms.reduce((sum, r) => sum + r.current_occupancy, 0) / currentFloorData.total_capacity)
+                : '0%'
+              }
             </p>
           </div>
         </div>
