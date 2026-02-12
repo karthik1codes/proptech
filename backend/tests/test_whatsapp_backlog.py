@@ -67,8 +67,8 @@ class TestMessageTemplates:
         
         print("✅ list command returns property list template")
     
-    def test_property_name_query_returns_detailed_template(self):
-        """Test property name query returns detailed property template"""
+    def test_property_name_query_requires_linking(self):
+        """Test property name query requires account linking (multi-user system)"""
         response = requests.post(
             f"{BASE_URL}/api/whatsapp/webhook",
             data={"Body": "Horizon Tech Park", "From": "whatsapp:+919876543210"},
@@ -79,18 +79,14 @@ class TestMessageTemplates:
         content = response.text
         assert "<Message>" in content
         
-        # Check detailed property template elements
-        assert "Horizon Tech Park" in content
-        assert "Location" in content or "Bangalore" in content
-        # Should have metrics
-        assert "Occupancy" in content
-        # Should have financial info
-        assert "Revenue" in content or "Profit" in content or "₹" in content
+        # Property details require account linking in multi-user system
+        # Users should use 'list' command for no-auth property overview
+        assert "Account Not Linked" in content or "Link" in content
         
-        print("✅ property name query returns detailed template")
+        print("✅ property name query correctly requires linking")
     
-    def test_partial_property_name_match(self):
-        """Test partial property name matching (e.g., 'Horizon')"""
+    def test_partial_property_name_requires_linking(self):
+        """Test partial property name matching requires linking"""
         response = requests.post(
             f"{BASE_URL}/api/whatsapp/webhook",
             data={"Body": "horizon", "From": "whatsapp:+919876543210"},
@@ -100,10 +96,10 @@ class TestMessageTemplates:
         
         content = response.text
         assert "<Message>" in content
-        # Should match Horizon Tech Park
-        assert "Horizon Tech Park" in content
+        # Property details require linking
+        assert "Account Not Linked" in content or "Link" in content
         
-        print("✅ partial property name matching works")
+        print("✅ partial property name correctly requires linking")
 
 
 class TestAlertsCommand:
