@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Zap } from 'lucide-react';
+import { Building2, Zap, Shield, TrendingUp } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -11,83 +11,111 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex" data-testid="login-page">
+    <div className="min-h-screen flex relative overflow-hidden" data-testid="login-page">
+      {/* Animated background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        {/* Ambient lights */}
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[120px] animate-pulse"></div>
+        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-500/5 rounded-full blur-[150px]"></div>
+        
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-[0.02]" style={{
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+          backgroundSize: '60px 60px'
+        }}></div>
+      </div>
+
       {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `radial-gradient(circle at 2px 2px, rgba(59, 130, 246, 0.15) 1px, transparent 0)`,
-            backgroundSize: '40px 40px'
-          }}></div>
-        </div>
-        
-        {/* Glow Effects */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
-        
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center p-12 xl:p-20">
+      <div className="hidden lg:flex lg:w-1/2 relative">
+        <div className="relative z-10 flex flex-col justify-center p-16 xl:p-24">
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
-              <Building2 className="w-7 h-7 text-white" />
+          <div className="flex items-center gap-4 mb-16 animate-fade-in">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+                <Building2 className="w-8 h-8 text-white" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-slate-900 animate-pulse"></div>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">PropTech</h1>
-              <p className="text-sm text-blue-400 font-medium">Decision Copilot</p>
+              <h1 className="text-3xl font-bold text-white tracking-tight">PropTech</h1>
+              <p className="text-cyan-400 font-medium">Decision Copilot</p>
             </div>
           </div>
 
           {/* Hero Text */}
-          <div className="space-y-6">
-            <h2 className="text-4xl xl:text-5xl font-bold text-white leading-tight">
-              Intelligent Property
+          <div className="space-y-6 animate-fade-in stagger-2">
+            <h2 className="text-5xl xl:text-6xl font-bold text-white leading-tight">
+              AI-Powered
               <br />
-              <span className="gradient-text">Portfolio Management</span>
+              <span className="gradient-text">Property Intelligence</span>
             </h2>
-            <p className="text-lg text-zinc-400 max-w-md leading-relaxed">
-              Optimize your real estate portfolio with AI-powered insights, energy analytics, and strategic decision support.
+            <p className="text-xl text-slate-400 max-w-lg leading-relaxed">
+              Transform your real estate portfolio with intelligent analytics, predictive insights, and strategic decision support.
             </p>
           </div>
 
           {/* Features */}
-          <div className="mt-12 space-y-4">
+          <div className="mt-16 grid grid-cols-1 gap-6 animate-fade-in stagger-3">
             {[
-              { icon: Zap, text: 'Real-time occupancy tracking' },
-              { icon: Building2, text: 'Energy optimization engine' },
-              { icon: Zap, text: 'What-if scenario simulation' },
+              { icon: Zap, title: 'Real-time Analytics', desc: 'Track occupancy and energy in real-time' },
+              { icon: TrendingUp, title: 'Predictive Insights', desc: '7-day forecasting with AI models' },
+              { icon: Shield, title: 'Risk Assessment', desc: 'Identify optimization opportunities' },
             ].map((feature, idx) => (
-              <div key={idx} className="flex items-center gap-3 text-zinc-300">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <feature.icon className="w-4 h-4 text-blue-400" />
+              <div 
+                key={idx} 
+                className="flex items-start gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/5 backdrop-blur-sm hover:bg-white/[0.04] transition-colors group"
+              >
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/10 to-blue-500/10 flex items-center justify-center border border-cyan-500/20 group-hover:border-cyan-500/40 transition-colors">
+                  <feature.icon className="w-6 h-6 text-cyan-400" />
                 </div>
-                <span className="text-sm font-medium">{feature.text}</span>
+                <div>
+                  <h3 className="font-semibold text-white">{feature.title}</h3>
+                  <p className="text-sm text-slate-500">{feature.desc}</p>
+                </div>
               </div>
             ))}
+          </div>
+
+          {/* Stats */}
+          <div className="mt-16 flex items-center gap-12 animate-fade-in stagger-4">
+            <div>
+              <p className="text-4xl font-bold gradient-text">3M+</p>
+              <p className="text-sm text-slate-500">Sq. ft. managed</p>
+            </div>
+            <div className="w-px h-12 bg-white/10"></div>
+            <div>
+              <p className="text-4xl font-bold gradient-text">₹15Cr</p>
+              <p className="text-sm text-slate-500">Savings delivered</p>
+            </div>
+            <div className="w-px h-12 bg-white/10"></div>
+            <div>
+              <p className="text-4xl font-bold gradient-text">98%</p>
+              <p className="text-sm text-slate-500">Accuracy rate</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Right Panel - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-background">
-        <div className="w-full max-w-md space-y-8">
+      <div className="flex-1 flex items-center justify-center p-8 relative z-10">
+        <div className="w-full max-w-md space-y-8 animate-slide-up">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-white" />
+          <div className="lg:hidden flex items-center justify-center gap-3 mb-12">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+              <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">PropTech</h1>
-              <p className="text-xs text-blue-400 font-medium">Decision Copilot</p>
+              <h1 className="text-2xl font-bold text-white tracking-tight">PropTech</h1>
+              <p className="text-sm text-cyan-400 font-medium">Decision Copilot</p>
             </div>
           </div>
 
           {/* Login Card */}
-          <div className="glass rounded-2xl p-8 space-y-6">
-            <div className="text-center space-y-2">
-              <h3 className="text-2xl font-bold tracking-tight">Welcome Back</h3>
-              <p className="text-muted-foreground text-sm">
+          <div className="glass rounded-3xl p-10 border border-white/10 shadow-2xl shadow-black/50">
+            <div className="text-center space-y-3 mb-10">
+              <h3 className="text-3xl font-bold text-white tracking-tight">Welcome Back</h3>
+              <p className="text-slate-400">
                 Sign in to access your property dashboard
               </p>
             </div>
@@ -95,10 +123,10 @@ export default function LoginPage() {
             {/* Google Login Button */}
             <Button
               onClick={handleGoogleLogin}
-              className="w-full h-12 bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 rounded-xl font-medium flex items-center justify-center gap-3 transition-all hover:shadow-lg"
+              className="w-full h-14 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all hover:shadow-xl hover:shadow-white/10 hover:scale-[1.02] active:scale-[0.98]"
               data-testid="google-login-btn"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <svg className="w-6 h-6" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -119,22 +147,27 @@ export default function LoginPage() {
               Continue with Google
             </Button>
 
-            <div className="relative">
+            <div className="relative my-8">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
+                <div className="w-full border-t border-white/10"></div>
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Enterprise SSO</span>
+                <span className="px-4 text-slate-500 bg-slate-900/50 backdrop-blur-sm rounded-full">
+                  Enterprise SSO
+                </span>
               </div>
             </div>
 
-            <p className="text-center text-xs text-muted-foreground">
-              By signing in, you agree to our Terms of Service and Privacy Policy
+            <p className="text-center text-xs text-slate-500">
+              By signing in, you agree to our{' '}
+              <span className="text-cyan-400 hover:underline cursor-pointer">Terms of Service</span>
+              {' '}and{' '}
+              <span className="text-cyan-400 hover:underline cursor-pointer">Privacy Policy</span>
             </p>
           </div>
 
           {/* Footer */}
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-xs text-slate-600">
             © 2026 PropTech Decision Copilot. All rights reserved.
           </p>
         </div>
