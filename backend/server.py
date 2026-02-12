@@ -1919,15 +1919,32 @@ app.add_middleware(
 
 # Global alert scheduler instance
 _alert_scheduler = None
+_whatsapp_linking_service = None
+_command_parser = None
+_pdf_generator = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
-    global _alert_scheduler
+    global _alert_scheduler, _whatsapp_linking_service, _command_parser, _pdf_generator
+    
+    # Create indexes for user state service
+    await user_state_service.ensure_indexes()
     
     # Create indexes for conversation history
     await conversation_history.ensure_indexes()
+    
+    # Initialize WhatsApp linking service
+    _whatsapp_linking_service = init_whatsapp_linking_service(db, whatsapp_service)
+    await _whatsapp_linking_service.ensure_indexes()
+    
+    # Initialize command parser with properties
+    properties = property_store.get_all()
+    _command_parser = init_command_parser(properties)
+    
+    # Initialize PDF generator
+    _pdf_generator = init_pdf_generator(whatsapp_service)
     
     # Initialize alert scheduler
     _alert_scheduler = init_alert_scheduler(
@@ -1944,7 +1961,7 @@ async def startup_event():
     # Start the scheduled alert checker (runs in background)
     _alert_scheduler.start()
     
-    logger.info("PropTech Decision Copilot started - Alert scheduler active")
+    logger.info("PropTech Decision Copilot started - All services active")
 
 
 @app.on_event("shutdown")
