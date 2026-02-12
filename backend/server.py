@@ -669,9 +669,13 @@ class MCPHandler:
                 return {
                     "jsonrpc": "2.0",
                     "id": request_id,
-                    "error": {
-                        "code": -32602,
-                        "message": f"Unknown tool: {tool_name}"
+                    "result": {
+                        "content": [{
+                            "type": "text",
+                            "text": f"Unknown tool: {tool_name}",
+                            "annotations": []
+                        }],
+                        "isError": True
                     }
                 }
             
@@ -679,21 +683,25 @@ class MCPHandler:
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "result": {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": result
-                        }
-                    ]
+                    "content": [{
+                        "type": "text",
+                        "text": result,
+                        "annotations": []
+                    }],
+                    "isError": False
                 }
             }
         except Exception as e:
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "error": {
-                    "code": -32603,
-                    "message": str(e)
+                "result": {
+                    "content": [{
+                        "type": "text",
+                        "text": str(e),
+                        "annotations": []
+                    }],
+                    "isError": True
                 }
             }
     
