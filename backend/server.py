@@ -21,6 +21,10 @@ load_dotenv(ROOT_DIR / '.env')
 from services.whatsapp_service import whatsapp_service, WhatsAppService, MessageTemplates
 from services.conversation_history import ConversationHistory
 from services.alert_scheduler import AlertScheduler, init_alert_scheduler
+from services.user_state_service import UserPropertyStateService, init_user_state_service
+from services.whatsapp_linking_service import WhatsAppLinkingService, init_whatsapp_linking_service
+from services.command_parser import CommandParser, CommandIntent, ParsedCommand, init_command_parser
+from services.pdf_generator import PDFReportGenerator, init_pdf_generator
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -29,6 +33,9 @@ db = client[os.environ['DB_NAME']]
 
 # Initialize conversation history
 conversation_history = ConversationHistory(db)
+
+# Initialize user state service
+user_state_service = init_user_state_service(db)
 
 # Create the main app
 app = FastAPI(title="PropTech Decision Copilot API")
