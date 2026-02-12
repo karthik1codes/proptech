@@ -419,13 +419,10 @@ class PDFReportGenerator:
                            b.get('sustainability_score_rank', 3) + b.get('carbon_rank', 3)) / 4
                 if avg_rank <= 1.5:
                     performance = "⭐ HIGH"
-                    perf_color = colors.HexColor("#10b981")
                 elif avg_rank <= 2.5:
                     performance = "● MEDIUM"
-                    perf_color = colors.HexColor("#f59e0b")
                 else:
                     performance = "○ LOW"
-                    perf_color = colors.HexColor("#ef4444")
                 
                 bench_data.append([
                     b.get('name', '')[:15],
