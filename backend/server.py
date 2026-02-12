@@ -1477,6 +1477,409 @@ async def trigger_alert_check(user: User = Depends(get_current_user)):
     }
 
 
+# ==================== WHATSAPP LINKING ROUTES ====================
+
+class LinkPhoneRequest(BaseModel):
+    phone_number: str
+
+class VerifyOTPRequest(BaseModel):
+    phone_number: str
+    otp_code: str
+
+
+@api_router.post("/whatsapp/link/initiate")
+async def initiate_phone_linking(
+    request: LinkPhoneRequest,
+    user: User = Depends(get_current_user)
+):
+    """Initiate WhatsApp phone linking by sending OTP."""
+    global _whatsapp_linking_service
+    if not _whatsapp_linking_service:
+        raise HTTPException(status_code=503, detail="Linking service not available")
+    
+    result = await _whatsapp_linking_service.initiate_linking(
+        user_id=user.user_id,
+        phone_number=request.phone_number,
+        user_name=user.name or "User"
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to initiate linking"))
+    
+    return result
+
+
+@api_router.post("/whatsapp/link/verify")
+async def verify_phone_linking(
+    request: VerifyOTPRequest,
+    user: User = Depends(get_current_user)
+):
+    """Verify OTP and complete phone linking."""
+    global _whatsapp_linking_service
+    if not _whatsapp_linking_service:
+        raise HTTPException(status_code=503, detail="Linking service not available")
+    
+    result = await _whatsapp_linking_service.verify_otp(
+        user_id=user.user_id,
+        phone_number=request.phone_number,
+        otp_code=request.otp_code
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Verification failed"))
+    
+    return result
+
+
+@api_router.get("/whatsapp/link/status")
+async def get_linking_status(user: User = Depends(get_current_user)):
+    """Get WhatsApp linking status for current user."""
+    global _whatsapp_linking_service
+    if not _whatsapp_linking_service:
+        raise HTTPException(status_code=503, detail="Linking service not available")
+    
+    return await _whatsapp_linking_service.get_linking_status(user.user_id)
+
+
+@api_router.post("/whatsapp/link/unlink")
+async def unlink_phone(user: User = Depends(get_current_user)):
+    """Unlink WhatsApp phone number from account."""
+    global _whatsapp_linking_service
+    if not _whatsapp_linking_service:
+        raise HTTPException(status_code=503, detail="Linking service not available")
+    
+    result = await _whatsapp_linking_service.unlink_phone(user.user_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to unlink"))
+    
+    return result
+
+
+# ==================== USER STATE ROUTES ====================
+
+class CloseFloorsRequest(BaseModel):
+    floors: List[int]
+
+class SimulationParamsRequest(BaseModel):
+    hybrid_intensity: Optional[float] = None
+    target_occupancy: Optional[float] = None
+
+
+@api_router.get("/user-state/{property_id}")
+async def get_user_property_state(
+    property_id: str,
+    user: User = Depends(get_current_user)
+):
+    """Get user's optimization state for a property."""
+    state = await user_state_service.get_user_state(user.user_id, property_id)
+    
+    if not state:
+        return {
+            "property_id": property_id,
+            "has_override": False,
+            "closed_floors": [],
+            "message": "Using default property state"
+        }
+    
+    return {
+        "property_id": property_id,
+        "has_override": True,
+        **state
+    }
+
+
+@api_router.get("/user-state")
+async def get_all_user_states(user: User = Depends(get_current_user)):
+    """Get all property states for current user."""
+    states = await user_state_service.get_all_user_states(user.user_id)
+    return {"user_id": user.user_id, "states": states, "count": len(states)}
+
+
+@api_router.post("/user-state/{property_id}/close-floors")
+async def close_floors(
+    property_id: str,
+    request: CloseFloorsRequest,
+    user: User = Depends(get_current_user)
+):
+    """Close specific floors for a property (user-scoped)."""
+    # Validate property exists
+    prop = property_store.get_by_id(property_id)
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    # Validate floor numbers
+    max_floors = prop.get("floors", 0)
+    invalid_floors = [f for f in request.floors if f < 1 or f > max_floors]
+    if invalid_floors:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid floor numbers: {invalid_floors}. Property has floors 1-{max_floors}"
+        )
+    
+    result = await user_state_service.close_floors(user.user_id, property_id, request.floors)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to close floors"))
+    
+    # Get updated analytics
+    state = await user_state_service.get_user_state(user.user_id, property_id)
+    analytics = await _get_property_analytics_with_override(prop, state)
+    
+    return {
+        **result,
+        "analytics": analytics
+    }
+
+
+@api_router.post("/user-state/{property_id}/open-floors")
+async def open_floors(
+    property_id: str,
+    request: CloseFloorsRequest,
+    user: User = Depends(get_current_user)
+):
+    """Open (re-enable) specific floors for a property (user-scoped)."""
+    result = await user_state_service.open_floors(user.user_id, property_id, request.floors)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to open floors"))
+    
+    # Get updated analytics
+    prop = property_store.get_by_id(property_id)
+    state = await user_state_service.get_user_state(user.user_id, property_id)
+    analytics = await _get_property_analytics_with_override(prop, state) if prop else {}
+    
+    return {
+        **result,
+        "analytics": analytics
+    }
+
+
+@api_router.post("/user-state/{property_id}/reset")
+async def reset_property_state(
+    property_id: str,
+    user: User = Depends(get_current_user)
+):
+    """Reset user's property state to default (remove all overrides)."""
+    result = await user_state_service.reset_property_state(user.user_id, property_id)
+    return result
+
+
+@api_router.post("/user-state/reset-all")
+async def reset_all_user_states(user: User = Depends(get_current_user)):
+    """Reset all property states for current user."""
+    result = await user_state_service.reset_all_user_states(user.user_id)
+    return result
+
+
+async def _get_property_analytics_with_override(
+    prop: Dict[str, Any],
+    user_state: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Calculate property analytics with user override applied."""
+    digital_twin = prop.get("digital_twin", {})
+    daily_data = digital_twin.get("daily_history", [])
+    recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+    
+    closed_floors = user_state.get("closed_floors", []) if user_state else []
+    total_floors = prop.get("floors", 0)
+    active_floors = total_floors - len(closed_floors)
+    
+    # Calculate adjusted metrics
+    if closed_floors:
+        # Simulate redistribution
+        redistribution = IntelligenceEngine.calculate_redistribution_efficiency(
+            prop, closed_floors
+        )
+        financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+        
+        # Calculate savings from closed floors
+        savings_per_floor = (financials["energy_cost"] + financials["maintenance_cost"]) / total_floors
+        monthly_savings = savings_per_floor * len(closed_floors) * 0.7  # 70% realized savings
+        
+        # Energy calculations
+        baseline_energy = prop.get("baseline_energy_intensity", 150) * total_floors * 30
+        reduced_energy = baseline_energy * (active_floors / total_floors)
+        energy_reduction_pct = ((baseline_energy - reduced_energy) / baseline_energy) * 100
+        
+        return {
+            "total_floors": total_floors,
+            "active_floors": active_floors,
+            "closed_floors": closed_floors,
+            "redistribution_efficiency": redistribution["efficiency"],
+            "new_occupancy_per_floor": redistribution["new_avg_occupancy"],
+            "monthly_savings": round(monthly_savings, 2),
+            "energy_reduction_pct": round(energy_reduction_pct, 1),
+            "carbon_reduction_kg": round(energy_reduction_pct * 10, 1),
+            "risk_level": redistribution.get("risk_level", "low"),
+            "efficiency_score_before": IntelligenceEngine.calculate_efficiency_score(prop),
+            "efficiency_score_after": min(100, IntelligenceEngine.calculate_efficiency_score(prop) + len(closed_floors) * 3),
+            "confidence_score": 0.85 if len(closed_floors) <= 3 else 0.75
+        }
+    else:
+        financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+        return {
+            "total_floors": total_floors,
+            "active_floors": total_floors,
+            "closed_floors": [],
+            "monthly_savings": 0,
+            "energy_reduction_pct": 0,
+            "carbon_reduction_kg": 0,
+            "efficiency_score": IntelligenceEngine.calculate_efficiency_score(prop),
+            "financials": financials
+        }
+
+
+# ==================== PDF REPORT ROUTES ====================
+
+@api_router.get("/reports/property/{property_id}/pdf")
+async def download_property_pdf(
+    property_id: str,
+    user: User = Depends(get_current_user)
+):
+    """Generate and download property PDF report."""
+    global _pdf_generator
+    if not _pdf_generator:
+        raise HTTPException(status_code=503, detail="PDF generator not available")
+    
+    prop = property_store.get_by_id(property_id)
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    # Get user state
+    user_state = await user_state_service.get_user_state(user.user_id, property_id)
+    
+    # Calculate financials
+    digital_twin = prop.get("digital_twin", {})
+    daily_data = digital_twin.get("daily_history", [])
+    recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+    financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+    recommendations = IntelligenceEngine.generate_recommendations(prop)
+    
+    # Generate PDF
+    pdf_bytes = _pdf_generator.generate_property_report(
+        property_data=prop,
+        financials=financials,
+        recommendations=recommendations,
+        user_state=user_state
+    )
+    
+    filename = f"{prop['name'].replace(' ', '_')}_report.pdf"
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@api_router.get("/reports/executive-summary/pdf")
+async def download_executive_pdf(user: User = Depends(get_current_user)):
+    """Generate and download executive summary PDF."""
+    global _pdf_generator
+    if not _pdf_generator:
+        raise HTTPException(status_code=503, detail="PDF generator not available")
+    
+    properties = property_store.get_all()
+    
+    # Get user states for all properties
+    user_states = {}
+    for prop in properties:
+        state = await user_state_service.get_user_state(user.user_id, prop["property_id"])
+        if state:
+            user_states[prop["property_id"]] = state
+    
+    # Calculate portfolio metrics
+    total_revenue = 0
+    total_profit = 0
+    total_occupancy = 0
+    property_revenues = {}
+    
+    for prop in properties:
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        
+        financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+        total_revenue += financials["revenue"]
+        total_profit += financials["profit"]
+        total_occupancy += recent_occupancy
+        property_revenues[prop["property_id"]] = financials["revenue"]
+    
+    portfolio_metrics = {
+        "total_revenue": total_revenue,
+        "total_profit": total_profit,
+        "avg_occupancy": (total_occupancy / len(properties) * 100) if properties else 0,
+        "property_revenues": property_revenues
+    }
+    
+    # Generate PDF
+    pdf_bytes = _pdf_generator.generate_executive_summary(
+        properties=properties,
+        portfolio_metrics=portfolio_metrics,
+        user_states=user_states
+    )
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=executive_summary.pdf"}
+    )
+
+
+@api_router.get("/reports/energy/{property_id}/pdf")
+async def download_energy_pdf(
+    property_id: str,
+    user: User = Depends(get_current_user)
+):
+    """Generate and download energy savings PDF report."""
+    global _pdf_generator
+    if not _pdf_generator:
+        raise HTTPException(status_code=503, detail="PDF generator not available")
+    
+    prop = property_store.get_by_id(property_id)
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    # Get user state
+    user_state = await user_state_service.get_user_state(user.user_id, property_id)
+    closed_floors = user_state.get("closed_floors", []) if user_state else []
+    
+    # Calculate energy metrics
+    digital_twin = prop.get("digital_twin", {})
+    daily_data = digital_twin.get("daily_history", [])
+    recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+    
+    savings = IntelligenceEngine.calculate_energy_savings(prop, recent_occupancy, closed_floors)
+    
+    total_floors = prop.get("floors", 0)
+    baseline_kwh = prop.get("baseline_energy_intensity", 150) * total_floors * 30
+    
+    energy_metrics = {
+        "baseline_kwh": baseline_kwh,
+        "current_kwh": baseline_kwh - savings.get("energy_saved_kwh", 0),
+        "reduction_pct": savings.get("energy_reduction_percentage", 0),
+        "weekly_savings": savings.get("monthly_cost_savings", 0) / 4,
+        "monthly_savings": savings.get("monthly_cost_savings", 0),
+        "annual_savings": savings.get("monthly_cost_savings", 0) * 12,
+        "carbon_reduction": savings.get("carbon_reduction_kg", 0)
+    }
+    
+    pdf_bytes = _pdf_generator.generate_energy_report(
+        property_data=prop,
+        energy_metrics=energy_metrics,
+        user_state=user_state
+    )
+    
+    filename = f"{prop['name'].replace(' ', '_')}_energy_report.pdf"
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/session")
