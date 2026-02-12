@@ -114,7 +114,7 @@ class PDFReportGenerator:
         
         # Title
         story.append(Paragraph(
-            f"Property Analytics Report",
+            "Property Analytics Report",
             self.styles['CustomTitle']
         ))
         
