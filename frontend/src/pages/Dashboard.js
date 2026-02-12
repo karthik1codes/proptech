@@ -13,6 +13,7 @@ import { Progress } from '../components/ui/progress';
 import { API, AuthContext } from '../App';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters';
 import AnimatedCounter from '../components/AnimatedCounter';
+import WhatsAppLinking from '../components/WhatsAppLinking';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
