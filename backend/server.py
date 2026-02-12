@@ -1321,11 +1321,152 @@ async def send_property_alert(
 @api_router.get("/whatsapp/status")
 async def whatsapp_status():
     """Check WhatsApp service configuration status"""
+    global _alert_scheduler
     return {
         "configured": whatsapp_service.is_configured,
         "account_sid_set": bool(os.environ.get("TWILIO_ACCOUNT_SID")),
         "auth_token_set": bool(os.environ.get("TWILIO_AUTH_TOKEN")),
-        "whatsapp_number_set": bool(os.environ.get("TWILIO_WHATSAPP_NUMBER"))
+        "whatsapp_number_set": bool(os.environ.get("TWILIO_WHATSAPP_NUMBER")),
+        "alert_scheduler_running": _alert_scheduler.is_running if _alert_scheduler else False
+    }
+
+
+# ==================== CONVERSATION HISTORY ENDPOINTS ====================
+
+@api_router.get("/whatsapp/conversations/{phone_number}")
+async def get_conversation_history(
+    phone_number: str,
+    limit: int = 20,
+    user: User = Depends(get_current_user)
+):
+    """Get conversation history for a phone number."""
+    # Ensure phone number has + prefix
+    if not phone_number.startswith("+"):
+        phone_number = f"+{phone_number}"
+    
+    messages = await conversation_history.get_conversation(phone_number, limit=limit)
+    stats = await conversation_history.get_user_stats(phone_number)
+    
+    return {
+        "phone_number": phone_number,
+        "messages": messages,
+        "stats": stats
+    }
+
+
+@api_router.get("/whatsapp/conversations")
+async def search_conversations(
+    query: Optional[str] = None,
+    limit: int = 50,
+    user: User = Depends(get_current_user)
+):
+    """Search conversation history."""
+    if query:
+        messages = await conversation_history.search_conversations(query, limit=limit)
+    else:
+        # Return recent messages from all conversations
+        messages = await conversation_history.collection.find(
+            {},
+            {"_id": 0}
+        ).sort("created_at", -1).limit(limit).to_list(length=limit)
+    
+    return {"messages": messages, "count": len(messages)}
+
+
+# ==================== ALERT SUBSCRIPTION ENDPOINTS ====================
+
+class AlertSubscriptionRequest(BaseModel):
+    phone_number: str
+    property_ids: Optional[List[str]] = None
+    alert_types: Optional[List[str]] = None
+
+
+@api_router.post("/whatsapp/alerts/subscribe")
+async def subscribe_to_alerts(
+    request: AlertSubscriptionRequest,
+    user: User = Depends(get_current_user)
+):
+    """Subscribe a phone number to property alerts."""
+    global _alert_scheduler
+    if not _alert_scheduler:
+        raise HTTPException(status_code=503, detail="Alert scheduler not available")
+    
+    result = await _alert_scheduler.subscribe(
+        phone_number=request.phone_number,
+        property_ids=request.property_ids,
+        alert_types=request.alert_types
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to subscribe"))
+    
+    return result
+
+
+@api_router.post("/whatsapp/alerts/unsubscribe")
+async def unsubscribe_from_alerts(
+    phone_number: str,
+    user: User = Depends(get_current_user)
+):
+    """Unsubscribe a phone number from alerts."""
+    global _alert_scheduler
+    if not _alert_scheduler:
+        raise HTTPException(status_code=503, detail="Alert scheduler not available")
+    
+    result = await _alert_scheduler.unsubscribe(phone_number)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to unsubscribe"))
+    
+    return result
+
+
+@api_router.get("/whatsapp/alerts/subscriptions")
+async def get_alert_subscriptions(user: User = Depends(get_current_user)):
+    """Get all active alert subscriptions."""
+    global _alert_scheduler
+    if not _alert_scheduler:
+        raise HTTPException(status_code=503, detail="Alert scheduler not available")
+    
+    subscriptions = await _alert_scheduler.get_all_active_subscriptions()
+    return {"subscriptions": subscriptions, "count": len(subscriptions)}
+
+
+@api_router.get("/whatsapp/alerts/history")
+async def get_alert_history(
+    phone_number: Optional[str] = None,
+    limit: int = 50,
+    user: User = Depends(get_current_user)
+):
+    """Get alert sending history."""
+    global _alert_scheduler
+    if not _alert_scheduler:
+        raise HTTPException(status_code=503, detail="Alert scheduler not available")
+    
+    history = await _alert_scheduler.get_alert_history(phone_number=phone_number, limit=limit)
+    return {"alerts": history, "count": len(history)}
+
+
+@api_router.post("/whatsapp/alerts/check-now")
+async def trigger_alert_check(user: User = Depends(get_current_user)):
+    """Manually trigger an alert check across all properties."""
+    global _alert_scheduler
+    if not _alert_scheduler:
+        raise HTTPException(status_code=503, detail="Alert scheduler not available")
+    
+    all_alerts = await _alert_scheduler.check_all_properties()
+    
+    total_alerts = sum(len(alerts) for alerts in all_alerts.values())
+    
+    return {
+        "properties_checked": len(property_store.get_all()),
+        "properties_with_alerts": len(all_alerts),
+        "total_alerts": total_alerts,
+        "alerts_by_property": {
+            prop_id: [{"type": a["type"], "property": a["property_name"], "value": a["metric_value"]} 
+                      for a in alerts]
+            for prop_id, alerts in all_alerts.items()
+        }
     }
 
 
