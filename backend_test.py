@@ -79,7 +79,15 @@ class PropTechAPITester:
         print("="*50)
         
         self.run_test("API Health Check", "GET", "/health", 200)
-        self.run_test("API Root", "GET", "/", 200)
+        
+        # Test root endpoint and check for mcp_enabled
+        success, response = self.run_test("API Root", "GET", "/", 200)
+        if success and isinstance(response, dict):
+            if response.get('mcp_enabled') == True:
+                print("   ✅ MCP is enabled in root endpoint")
+            else:
+                print("   ❌ MCP not enabled or mcp_enabled field missing")
+                print(f"   Response: {response}")
 
     def test_auth_endpoints(self):
         """Test authentication endpoints"""
