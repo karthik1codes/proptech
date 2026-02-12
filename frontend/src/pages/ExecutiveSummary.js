@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   BarChart3, TrendingUp, Leaf, Building2, 
-  Crown, Medal, Award, ChevronRight
+  Crown, Medal, Award, ChevronRight, Download, Loader2, FileText
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
