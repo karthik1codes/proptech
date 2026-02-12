@@ -102,3 +102,39 @@ Build a production-ready full-stack AI PropTech Decision Copilot with Google OAu
 2. Implement real-time occupancy updates
 3. Add PDF export for executive reports
 4. Integrate with building management systems
+
+---
+
+## Update: v1.1.0 (2026-02-12) - MCP Integration & Premium UI
+
+### New Features
+
+#### MCP (Model Context Protocol) Integration
+- Added `/api/mcp` endpoint for AI assistant integration (ChatGPT, Claude)
+- JSON-RPC style protocol with 5 tools:
+  - `list_properties` - Portfolio overview with all properties
+  - `get_property_overview` - Detailed property metrics
+  - `simulate_floor_closure` - What-if scenario analysis
+  - `energy_savings_report` - Energy optimization scenarios
+  - `get_recommendations` - AI recommendations with impact analysis
+- All responses formatted in markdown for better AI consumption
+- See README.md for ngrok/Cloudflare tunnel instructions
+
+#### Dark Mode Only - Premium UI
+- Removed light mode toggle (dark mode permanent)
+- Deep dark gradient backgrounds
+- Glassmorphism cards with blur effects
+- Cyan/blue glow accents
+- Animated gradient borders on hover
+- Premium loading spinner
+- Polished navigation with active state indicators
+- Enhanced login page with stats and features showcase
+
+### Technical Changes
+- Backend: Added MCPHandler class with tool implementations
+- Frontend: Removed ThemeContext, updated all components for dark-only
+- CSS: New premium variables, glassmorphism utilities, glow effects
+- README: Added MCP documentation section
+
+### Breaking Changes
+- None - OAuth and all existing APIs work unchanged
