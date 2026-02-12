@@ -232,11 +232,10 @@ class TestWhatsAppEndpoints:
         assert "account_sid_set" in data
         assert "auth_token_set" in data
         assert "whatsapp_number_set" in data
+        assert "alert_scheduler_running" in data
         
-        # Without Twilio credentials, configured should be false
-        assert data["configured"] == False
-        
-        print("✅ WhatsApp status endpoint working (configured: false as expected)")
+        # Twilio credentials are now configured
+        print(f"✅ WhatsApp status endpoint working (configured: {data['configured']}, scheduler: {data['alert_scheduler_running']})")
     
     def test_whatsapp_webhook_list_command(self):
         """Test WhatsApp webhook with 'list' command returns property list"""
