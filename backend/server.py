@@ -394,7 +394,6 @@ class IntelligenceEngine:
         """Generate AI-like recommendations based on property data"""
         digital_twin = prop.get("digital_twin", {})
         daily_data = digital_twin.get("daily_history", [])
-        floor_data = digital_twin.get("floor_data", [])
         
         recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
         utilization = IntelligenceEngine.classify_utilization(recent_occupancy)
