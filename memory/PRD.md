@@ -1,5 +1,24 @@
 # PropTech Decision Copilot - Product Requirements Document
 
+## Latest Update: February 12, 2026
+
+### New Feature: OpenAI-Exclusive MCP Server
+Added Model Context Protocol server that routes ALL model inference requests exclusively to OpenAI GPT-5.2.
+
+**Endpoints:**
+- `POST /api/mcp/openai` - MCP JSON-RPC endpoint
+- `POST /api/mcp/openai/chat/completions` - Direct chat completions
+
+**Features:**
+- Single-provider architecture (OpenAI only)
+- Multi-turn conversation support
+- Session-based tracking
+- JSON-RPC 2.0 compliant
+
+**Documentation:** `/app/README-OPENAI-MCP.md`
+
+---
+
 ## Overview
 **Product Name:** PropTech Decision Copilot  
 **Version:** 1.0.0  
