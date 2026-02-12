@@ -1141,21 +1141,24 @@ _Reply 'subscribe' to re-enable alerts._"""
             metadata = {"command": "unsubscribe"}
         
         elif "subscribe" in message_body:
-            # Unsubscribe from alerts
+            # Subscribe to alerts
             from services.alert_scheduler import alert_scheduler
             if alert_scheduler:
-                result = await alert_scheduler.unsubscribe(sender_phone)
+                result = await alert_scheduler.subscribe(sender_phone)
                 if result["success"]:
-                    response_text = """✅ *Unsubscribed from Alerts*
+                    response_text = """✅ *Subscribed to Alerts*
 
-You will no longer receive automated property alerts.
+You will now receive automated alerts for:
+• High Occupancy (>90%)
+• Low Utilization (<40%)
+• Energy Spikes (>15%)
 
-_Reply 'subscribe' to re-enable alerts._"""
+_Reply 'unsubscribe' to stop alerts._"""
                 else:
-                    response_text = "❌ You are not currently subscribed to alerts."
+                    response_text = f"❌ Failed to subscribe: {result.get('error', 'Unknown error')}"
             else:
                 response_text = "⚠️ Alert service is not available."
-            metadata = {"command": "unsubscribe"}
+            metadata = {"command": "subscribe"}
         
         elif "status" in message_body:
             # System status
