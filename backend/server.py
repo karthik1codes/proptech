@@ -17,13 +17,18 @@ import math
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Import WhatsApp service
-from services.whatsapp_service import whatsapp_service, WhatsAppService
+# Import WhatsApp service and related modules
+from services.whatsapp_service import whatsapp_service, WhatsAppService, MessageTemplates
+from services.conversation_history import ConversationHistory
+from services.alert_scheduler import AlertScheduler, init_alert_scheduler
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Initialize conversation history
+conversation_history = ConversationHistory(db)
 
 # Create the main app
 app = FastAPI(title="PropTech Decision Copilot API")
