@@ -951,13 +951,25 @@ async def get_current_user(request: Request) -> User:
 
 
 # ==================== MCP ENDPOINT (ROOT-LEVEL, NO AUTH) ====================
+# Note: Due to Kubernetes ingress routing, MCP is accessible at:
+# - Internal: /mcp (direct app route)
+# - External: /api/mcp (via ingress routing)
 
 @app.post("/mcp")
-async def mcp_endpoint(request: MCPRequest):
+async def mcp_endpoint_root(request: MCPRequest):
     """
-    MCP (Model Context Protocol) endpoint for AI assistant integration.
-    Root-level endpoint at /mcp - No authentication required.
-    Supports JSON-RPC style requests for property analytics tools.
+    MCP (Model Context Protocol) endpoint - Root level.
+    No authentication required.
+    """
+    response = MCPHandler.handle_request(request.model_dump())
+    return response
+
+
+@api_router.post("/mcp")
+async def mcp_endpoint_api(request: MCPRequest):
+    """
+    MCP (Model Context Protocol) endpoint - API prefixed for external access.
+    No authentication required.
     
     Response format follows MCP standard:
     {
