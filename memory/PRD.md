@@ -2,38 +2,139 @@
 
 ## Latest Update: February 12, 2026
 
-### Backlog Implementation Complete: WhatsApp Enhanced Features
+### MAJOR UPGRADE: Fully Conversational Multi-User PropTech Copilot
 
-**Features Implemented:**
+Every website action is now executable via WhatsApp with strict multi-user isolation.
 
-1. **WhatsApp Message Templates** (`backend/services/whatsapp_service.py`)
-   - `MessageTemplates` class with pre-defined templates
-   - Templates: welcome, help_menu, property_list, property_details, alert_notification, active_alerts, no_alerts, error_message
-   - Consistent formatting with emojis and separators
+---
 
-2. **Conversation History Persistence** (`backend/services/conversation_history.py`)
-   - MongoDB collection: `whatsapp_conversations`
-   - Saves all inbound/outbound messages with metadata
-   - APIs: GET `/api/whatsapp/conversations/{phone_number}`, GET `/api/whatsapp/conversations?query=`
-   - Features: search, user stats, context retrieval
+## New Services Implemented
 
-3. **Scheduled Alert Checks** (`backend/services/alert_scheduler.py`)
-   - Background task runs every 30 minutes (configurable via `ALERT_CHECK_INTERVAL`)
-   - Checks all properties against thresholds
-   - Sends alerts to subscribed phone numbers
-   - MongoDB collections: `alert_subscriptions`, `alert_logs`
-   - APIs: 
-     - POST `/api/whatsapp/alerts/subscribe`
-     - POST `/api/whatsapp/alerts/unsubscribe`
-     - GET `/api/whatsapp/alerts/subscriptions`
-     - GET `/api/whatsapp/alerts/history`
-     - POST `/api/whatsapp/alerts/check-now`
+### 1. Per-User Optimization State (`backend/services/user_state_service.py`)
+- MongoDB collection: `user_property_states`
+- Schema: `{user_id, property_id, closed_floors[], hybrid_intensity, target_occupancy, last_simulation_result, updated_at}`
+- User A closes F7 → Only User A sees it (complete isolation)
+- Runtime overrides only, no digital twin duplication
 
-4. **New WhatsApp Commands**
-   - `alerts` - View active alerts across all properties
-   - `status` - System status (scheduler, subscribers, properties)
-   - `subscribe` - Subscribe to automated alerts
-   - `unsubscribe` - Unsubscribe from alerts
+### 2. WhatsApp ↔ Google Account Linking (`backend/services/whatsapp_linking_service.py`)
+- MongoDB collections: `whatsapp_user_mapping`, `whatsapp_otp_codes`
+- OTP verification via Twilio (6-digit code, 10-min expiry)
+- APIs:
+  - POST `/api/whatsapp/link/initiate` - Send OTP
+  - POST `/api/whatsapp/link/verify` - Verify OTP
+  - GET `/api/whatsapp/link/status` - Check linking status
+  - POST `/api/whatsapp/link/unlink` - Remove link
+
+### 3. Natural Language Command Parser (`backend/services/command_parser.py`)
+- Intent detection for 20+ command types
+- Extracts: property name, floor numbers, parameters
+- Patterns: "Close F7 in Horizon", "What if we shut floor 2?", "Simulate closing F3"
+
+### 4. PDF Report Generator (`backend/services/pdf_generator.py`)
+- Property reports with user override state
+- Executive summary across portfolio
+- Energy savings reports
+- APIs:
+  - GET `/api/reports/property/{property_id}/pdf`
+  - GET `/api/reports/executive-summary/pdf`
+  - GET `/api/reports/energy/{property_id}/pdf`
+
+### 5. User State APIs
+- GET `/api/user-state/{property_id}` - Get user's property state
+- GET `/api/user-state` - Get all user states
+- POST `/api/user-state/{property_id}/close-floors` - Close floors
+- POST `/api/user-state/{property_id}/open-floors` - Open floors
+- POST `/api/user-state/{property_id}/reset` - Reset property
+- POST `/api/user-state/reset-all` - Reset all
+
+---
+
+## WhatsApp Commands
+
+### Floor Control (Requires Account Linking)
+- `Close F7 in Horizon` - Close floor 7
+- `Open floor 3` - Reopen floor 3
+- `Close floors 2,4,5` - Close multiple floors
+
+### Simulation (Requires Account Linking)
+- `Simulate closing F3` - Run what-if analysis
+- `What if we shut floor 2?` - What-if scenario
+- `Run optimization` - Get optimization insights
+
+### Analytics (Requires Account Linking)
+- `Show dashboard` - Portfolio overview
+- `Executive summary` - Full summary
+- `Horizon details` - Property analytics
+- `Energy report Horizon` - Energy analysis
+
+### Reports (Requires Account Linking)
+- `Download PDF` - Get summary report
+- `Energy report` - Energy savings PDF
+
+### Reset (Requires Account Linking)
+- `Reset Horizon` - Reset property state
+- `Reset all` - Reset all overrides
+- `Undo` - Revert last change
+
+### Alerts
+- `Alerts` - View active alerts
+- `Subscribe` - Enable auto-alerts
+- `Unsubscribe` - Disable alerts
+
+### General (No Auth Required)
+- `List` - Show all properties
+- `Status` - System status
+- `Help` - Show all commands
+
+---
+
+## Response Format
+
+Every WhatsApp response includes:
+- Monthly savings (₹ formatted)
+- Efficiency change
+- Energy reduction %
+- Carbon reduction
+- Risk assessment
+- Confidence score
+
+---
+
+## Architecture
+
+```
+MongoDB Collections:
+├── user_property_states (per-user floor closures)
+├── whatsapp_user_mapping (phone-to-user links)
+├── whatsapp_otp_codes (verification codes, auto-expire)
+├── whatsapp_conversations (chat history)
+├── alert_subscriptions (alert subscribers)
+└── alert_logs (sent alerts)
+
+Services:
+├── UserPropertyStateService
+├── WhatsAppLinkingService
+├── CommandParser
+├── PDFReportGenerator
+├── AlertScheduler
+└── ConversationHistory
+```
+
+---
+
+### Previous Features (Still Active)
+
+**WhatsApp Message Templates**
+- `MessageTemplates` class with pre-defined templates
+- Consistent formatting with emojis and separators
+
+**Conversation History Persistence**
+- MongoDB collection: `whatsapp_conversations`
+- Saves all inbound/outbound messages with metadata
+
+**Scheduled Alert Checks**
+- Background task runs every 30 minutes
+- Thresholds: occupancy >90%, utilization <40%, energy spike >15%
 
 ---
 
