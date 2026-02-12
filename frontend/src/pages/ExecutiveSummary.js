@@ -17,6 +17,7 @@ export default function ExecutiveSummary() {
   const [loading, setLoading] = useState(true);
   const [executiveData, setExecutiveData] = useState(null);
   const [benchmarks, setBenchmarks] = useState([]);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     fetchExecutiveData();
@@ -35,6 +36,33 @@ export default function ExecutiveSummary() {
       toast.error('Failed to load executive summary');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadPDF = async () => {
+    setDownloading(true);
+    try {
+      const response = await axios.get(`${API}/reports/executive-summary-full/pdf`, {
+        withCredentials: true,
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `PropTech_Executive_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Executive Summary PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error('Failed to download PDF');
+    } finally {
+      setDownloading(false);
     }
   };
 
