@@ -1011,17 +1011,19 @@ class WhatsAppMessageRequest(BaseModel):
 
 async def _handle_whatsapp_webhook(body: str, from_number: str):
     """
-    Internal handler for WhatsApp webhook.
-    Reused by both root and api-prefixed endpoints.
-    Features: Message templates, conversation history persistence.
+    Conversational WhatsApp webhook handler.
+    Supports natural language commands with user authentication via phone linking.
+    Every website action can be executed via WhatsApp.
     """
+    global _whatsapp_linking_service, _command_parser, _pdf_generator
+    
     try:
-        # Parse incoming message
-        message_body = body.lower().strip()
         original_body = body.strip()
         sender_phone = from_number.replace("whatsapp:", "")
+        if not sender_phone.startswith("+"):
+            sender_phone = f"+{sender_phone}"
         
-        logger.info(f"WhatsApp message from {sender_phone}: {message_body}")
+        logger.info(f"WhatsApp message from {sender_phone}: {original_body}")
         
         # Save incoming message to conversation history
         await conversation_history.add_message(
@@ -1029,45 +1031,747 @@ async def _handle_whatsapp_webhook(body: str, from_number: str):
             direction="inbound",
             message_body=original_body,
             message_type="text",
-            metadata={"command": message_body}
+            metadata={"raw": original_body}
         )
         
-        # Get all properties for matching
+        # Check if user is linked
+        user_id = await _whatsapp_linking_service.get_user_by_phone(sender_phone) if _whatsapp_linking_service else None
+        
+        # Update command parser with latest properties
         properties = property_store.get_all()
-        templates = MessageTemplates()
+        if _command_parser:
+            _command_parser.update_properties(properties)
         
-        # Try to match property name
-        matched_property = None
+        # Parse the command
+        parsed = _command_parser.parse(original_body) if _command_parser else ParsedCommand(
+            intent=CommandIntent.UNKNOWN, raw_message=original_body
+        )
+        
+        # Commands that don't require linking
+        no_auth_commands = {
+            CommandIntent.HELP, CommandIntent.LIST_PROPERTIES, 
+            CommandIntent.STATUS, CommandIntent.UNKNOWN
+        }
+        
+        # Check if command requires authentication
+        if parsed.intent not in no_auth_commands and not user_id:
+            response_text = """🔒 *Account Not Linked*
+
+To use floor controls, simulations, and reports, please link your WhatsApp in the dashboard.
+
+━━━━━━━━━━━━━━━━━━
+*Available without linking:*
+• *list* - View all properties
+• *help* - Show commands
+• *status* - System status
+━━━━━━━━━━━━━━━━━━
+
+_Log in to your dashboard and go to Settings → Link WhatsApp_"""
+            return await _send_response(sender_phone, response_text, {"requires_auth": True})
+        
+        # Handle commands
+        response_text = await _process_command(parsed, user_id, sender_phone, properties)
+        
+        return await _send_response(sender_phone, response_text, {"intent": parsed.intent.value})
+        
+    except Exception as e:
+        logger.error(f"WhatsApp webhook error: {e}")
+        return MessageTemplates.error_message()
+
+
+async def _send_response(phone: str, text: str, metadata: Dict = None) -> str:
+    """Save outbound message and return response text."""
+    await conversation_history.add_message(
+        phone_number=phone,
+        direction="outbound",
+        message_body=text[:500],
+        message_type="response",
+        metadata=metadata or {}
+    )
+    return text
+
+
+async def _process_command(
+    parsed: ParsedCommand,
+    user_id: Optional[str],
+    phone: str,
+    properties: List[Dict]
+) -> str:
+    """Process parsed command and return response."""
+    global _alert_scheduler, _pdf_generator
+    
+    templates = MessageTemplates()
+    intent = parsed.intent
+    
+    # ==================== FLOOR CONTROL ====================
+    if intent == CommandIntent.CLOSE_FLOOR:
+        if not parsed.property_id:
+            return _property_required_message(properties)
+        
+        if not parsed.floors:
+            return "❌ Please specify which floors to close.\n\nExample: *Close F3 in Horizon*"
+        
+        prop = property_store.get_by_id(parsed.property_id)
+        result = await user_state_service.close_floors(user_id, parsed.property_id, parsed.floors)
+        
+        if result["success"]:
+            state = await user_state_service.get_user_state(user_id, parsed.property_id)
+            analytics = await _get_property_analytics_with_override(prop, state)
+            
+            return _format_floor_action_response(
+                action="closed",
+                floors=parsed.floors,
+                property_name=parsed.property_name,
+                analytics=analytics
+            )
+        return f"❌ Failed to close floors: {result.get('error', 'Unknown error')}"
+    
+    elif intent == CommandIntent.OPEN_FLOOR:
+        if not parsed.property_id:
+            return _property_required_message(properties)
+        
+        if not parsed.floors:
+            return "❌ Please specify which floors to open.\n\nExample: *Open F3*"
+        
+        prop = property_store.get_by_id(parsed.property_id)
+        result = await user_state_service.open_floors(user_id, parsed.property_id, parsed.floors)
+        
+        if result["success"]:
+            state = await user_state_service.get_user_state(user_id, parsed.property_id)
+            analytics = await _get_property_analytics_with_override(prop, state)
+            
+            return _format_floor_action_response(
+                action="opened",
+                floors=parsed.floors,
+                property_name=parsed.property_name,
+                analytics=analytics
+            )
+        return f"❌ Failed to open floors: {result.get('error', 'Unknown error')}"
+    
+    # ==================== SIMULATION ====================
+    elif intent in {CommandIntent.SIMULATE, CommandIntent.WHAT_IF}:
+        if not parsed.property_id:
+            return _property_required_message(properties)
+        
+        prop = property_store.get_by_id(parsed.property_id)
+        floors_to_simulate = parsed.floors or [1]  # Default to floor 1 if not specified
+        
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        
+        savings = IntelligenceEngine.calculate_energy_savings(prop, recent_occupancy, floors_to_simulate)
+        redistribution = IntelligenceEngine.calculate_redistribution_efficiency(prop, floors_to_simulate)
+        
+        # Save simulation result
+        await user_state_service.save_simulation_result(user_id, parsed.property_id, {
+            "floors": floors_to_simulate,
+            "savings": savings,
+            "redistribution": redistribution,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        return _format_simulation_response(
+            property_name=parsed.property_name,
+            floors=floors_to_simulate,
+            savings=savings,
+            redistribution=redistribution
+        )
+    
+    elif intent == CommandIntent.RUN_OPTIMIZATION:
+        if not parsed.property_id:
+            return _property_required_message(properties)
+        
+        prop = property_store.get_by_id(parsed.property_id)
+        insight = IntelligenceEngine.generate_copilot_insight(prop)
+        
+        return _format_optimization_response(parsed.property_name, insight)
+    
+    # ==================== DASHBOARD & ANALYTICS ====================
+    elif intent == CommandIntent.SHOW_DASHBOARD:
+        return await _format_dashboard_response(user_id, properties)
+    
+    elif intent == CommandIntent.EXECUTIVE_SUMMARY:
+        return await _format_executive_summary(user_id, properties)
+    
+    elif intent == CommandIntent.PORTFOLIO_OVERVIEW:
+        return await _format_portfolio_overview(user_id, properties)
+    
+    elif intent == CommandIntent.PROPERTY_DETAILS:
+        if not parsed.property_id:
+            return _property_required_message(properties)
+        
+        return await _format_property_details(user_id, parsed.property_id, parsed.property_name)
+    
+    # ==================== REPORTS ====================
+    elif intent == CommandIntent.DOWNLOAD_PDF:
+        return """📄 *PDF Reports Available*
+
+To download reports, please use the web dashboard:
+
+• Property Report: Dashboard → Property → Download PDF
+• Executive Summary: Dashboard → Reports → Executive Summary
+• Energy Report: Dashboard → Property → Energy Analysis
+
+_PDF download via WhatsApp coming soon!_"""
+    
+    elif intent == CommandIntent.ENERGY_REPORT:
+        if not parsed.property_id:
+            return _property_required_message(properties)
+        
+        return await _format_energy_report(user_id, parsed.property_id, parsed.property_name)
+    
+    # ==================== RECOMMENDATIONS ====================
+    elif intent == CommandIntent.GET_RECOMMENDATIONS:
+        if not parsed.property_id:
+            return await _format_portfolio_recommendations(properties)
+        
+        prop = property_store.get_by_id(parsed.property_id)
+        recommendations = IntelligenceEngine.generate_recommendations(prop)
+        
+        return _format_recommendations(parsed.property_name, recommendations)
+    
+    # ==================== RESET ====================
+    elif intent == CommandIntent.RESET_PROPERTY:
+        if not parsed.property_id:
+            return _property_required_message(properties)
+        
+        result = await user_state_service.reset_property_state(user_id, parsed.property_id)
+        
+        if result["success"]:
+            return f"""✅ *{parsed.property_name} Reset*
+
+All floor closures and optimizations have been reverted to default state.
+
+_Reply with property name to view current analytics._"""
+        return f"❌ Reset failed: {result.get('error', 'Unknown error')}"
+    
+    elif intent == CommandIntent.RESET_ALL:
+        result = await user_state_service.reset_all_user_states(user_id)
+        
+        return f"""✅ *All Properties Reset*
+
+{result.get('properties_reset', 0)} property state(s) reverted to default.
+
+_Reply 'list' to view properties._"""
+    
+    elif intent == CommandIntent.UNDO:
+        # Get last simulation and undo it
+        states = await user_state_service.get_all_user_states(user_id)
+        if states:
+            latest = max(states, key=lambda x: x.get("updated_at", ""))
+            prop_id = latest.get("property_id")
+            await user_state_service.reset_property_state(user_id, prop_id)
+            return f"✅ Last change undone for property {prop_id}"
+        return "ℹ️ No changes to undo."
+    
+    # ==================== ALERTS ====================
+    elif intent == CommandIntent.CHECK_ALERTS:
+        return await _format_active_alerts(user_id, properties)
+    
+    elif intent == CommandIntent.SUBSCRIBE_ALERTS:
+        if _alert_scheduler:
+            result = await _alert_scheduler.subscribe(phone)
+            if result["success"]:
+                return """✅ *Subscribed to Alerts*
+
+You will receive automated alerts for:
+• 🔴 High Occupancy (>90%)
+• 🟡 Low Utilization (<40%)
+• ⚡ Energy Spikes (>15%)
+
+_Reply 'unsubscribe' to stop._"""
+        return "❌ Alert subscription failed."
+    
+    elif intent == CommandIntent.UNSUBSCRIBE_ALERTS:
+        if _alert_scheduler:
+            result = await _alert_scheduler.unsubscribe(phone)
+            if result["success"]:
+                return "✅ *Unsubscribed* - You will no longer receive automated alerts."
+        return "❌ You are not subscribed to alerts."
+    
+    # ==================== SYSTEM ====================
+    elif intent == CommandIntent.HELP:
+        return _command_parser.get_help_text() if _command_parser else templates.help_menu()
+    
+    elif intent == CommandIntent.STATUS:
+        return await _format_system_status(user_id, phone, properties)
+    
+    elif intent == CommandIntent.LIST_PROPERTIES:
+        return _format_property_list(properties)
+    
+    # ==================== UNKNOWN ====================
+    else:
+        # Try to match property name for details
         for prop in properties:
-            prop_name_lower = prop["name"].lower()
-            if prop_name_lower in message_body or any(word in message_body for word in prop_name_lower.split()):
-                matched_property = prop
-                break
+            if prop["name"].lower() in parsed.raw_message.lower():
+                return await _format_property_details(user_id, prop["property_id"], prop["name"])
         
-        # Generate response based on match
-        if matched_property:
-            # Get analytics for matched property
-            digital_twin = matched_property.get("digital_twin", {})
-            daily_data = digital_twin.get("daily_history", [])
+        return templates.welcome()
+
+
+# ==================== RESPONSE FORMATTERS ====================
+
+def _property_required_message(properties: List[Dict]) -> str:
+    """Message when property is not specified."""
+    prop_list = "\n".join([f"• {p['name']}" for p in properties])
+    return f"""❓ *Which property?*
+
+Please specify a property name:
+{prop_list}
+
+Example: *Close F3 in Horizon*"""
+
+
+def _format_floor_action_response(
+    action: str,
+    floors: List[int],
+    property_name: str,
+    analytics: Dict
+) -> str:
+    """Format response for floor open/close actions."""
+    floor_str = ", ".join([f"F{f}" for f in floors])
+    
+    return f"""✅ *Floor(s) {action.title()}*
+
+━━━━━━━━━━━━━━━━━━
+🏢 *Property:* {property_name}
+🚪 *Floors {action}:* {floor_str}
+
+━━━━━━━━━━━━━━━━━━
+📊 *Updated Analytics*
+━━━━━━━━━━━━━━━━━━
+• Active Floors: {analytics.get('active_floors', 0)}/{analytics.get('total_floors', 0)}
+• Closed Floors: {', '.join(map(str, analytics.get('closed_floors', [])))}
+• Monthly Savings: {whatsapp_service.format_currency_inr(analytics.get('monthly_savings', 0))}
+• Energy Reduction: {analytics.get('energy_reduction_pct', 0):.1f}%
+• Carbon Reduction: {analytics.get('carbon_reduction_kg', 0):.1f} kg CO₂
+• Efficiency: {analytics.get('efficiency_score_before', 0)}% → {analytics.get('efficiency_score_after', 0)}%
+• Risk Level: {analytics.get('risk_level', 'low').title()}
+• Confidence: {analytics.get('confidence_score', 0.85)*100:.0f}%
+
+_Reply 'reset {property_name}' to undo._"""
+
+
+def _format_simulation_response(
+    property_name: str,
+    floors: List[int],
+    savings: Dict,
+    redistribution: Dict
+) -> str:
+    """Format what-if simulation response."""
+    floor_str = ", ".join([f"F{f}" for f in floors])
+    
+    return f"""🔮 *What-If Simulation*
+
+━━━━━━━━━━━━━━━━━━
+🏢 *Property:* {property_name}
+🚪 *Simulating:* Close {floor_str}
+
+━━━━━━━━━━━━━━━━━━
+💰 *Projected Savings*
+━━━━━━━━━━━━━━━━━━
+• Monthly: {whatsapp_service.format_currency_inr(savings.get('monthly_cost_savings', 0))}
+• Annual: {whatsapp_service.format_currency_inr(savings.get('monthly_cost_savings', 0) * 12)}
+• Energy Saved: {savings.get('energy_saved_kwh', 0):,.0f} kWh
+• Carbon: -{savings.get('carbon_reduction_kg', 0):,.0f} kg CO₂
+
+━━━━━━━━━━━━━━━━━━
+📊 *Redistribution Analysis*
+━━━━━━━━━━━━━━━━━━
+• New Avg Occupancy: {redistribution.get('new_avg_occupancy', 0)*100:.1f}%
+• Efficiency: {redistribution.get('efficiency', 0)*100:.1f}%
+• Risk Level: {redistribution.get('risk_level', 'low').title()}
+
+━━━━━━━━━━━━━━━━━━
+*To apply:* Close {floor_str} in {property_name}"""
+
+
+def _format_optimization_response(property_name: str, insight: Dict) -> str:
+    """Format optimization run response."""
+    return f"""⚡ *Optimization Analysis*
+
+━━━━━━━━━━━━━━━━━━
+🏢 *Property:* {property_name}
+
+━━━━━━━━━━━━━━━━━━
+📊 *Current State*
+━━━━━━━━━━━━━━━━━━
+• Utilization: {insight.get('utilization_class', 'N/A')}
+• Efficiency Before: {insight.get('efficiency_score_change', {}).get('before', 0)}%
+• Efficiency After: {insight.get('efficiency_score_change', {}).get('after', 0)}%
+• Improvement: +{insight.get('efficiency_score_change', {}).get('improvement', 0)}%
+
+━━━━━━━━━━━━━━━━━━
+💡 *Recommendation*
+━━━━━━━━━━━━━━━━━━
+{insight.get('recommended_action', 'No action needed')}
+
+━━━━━━━━━━━━━━━━━━
+💰 *Potential Impact*
+━━━━━━━━━━━━━━━━━━
+• Monthly Savings: {whatsapp_service.format_currency_inr(insight.get('monthly_savings', 0))}
+• Carbon Reduction: {insight.get('carbon_impact_kg', 0):,.0f} kg CO₂
+• Confidence: {insight.get('confidence_score', 0)*100:.0f}%"""
+
+
+async def _format_dashboard_response(user_id: str, properties: List[Dict]) -> str:
+    """Format dashboard overview response."""
+    total_revenue = 0
+    total_profit = 0
+    total_occupancy = 0
+    overrides_count = 0
+    
+    for prop in properties:
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        
+        financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+        total_revenue += financials["revenue"]
+        total_profit += financials["profit"]
+        total_occupancy += recent_occupancy
+        
+        if user_id:
+            state = await user_state_service.get_user_state(user_id, prop["property_id"])
+            if state and state.get("closed_floors"):
+                overrides_count += 1
+    
+    avg_occupancy = (total_occupancy / len(properties) * 100) if properties else 0
+    
+    return f"""📊 *Dashboard Overview*
+
+━━━━━━━━━━━━━━━━━━
+💰 *Portfolio Financials*
+━━━━━━━━━━━━━━━━━━
+• Total Revenue: {whatsapp_service.format_currency_inr(total_revenue)}
+• Total Profit: {whatsapp_service.format_currency_inr(total_profit)}
+• Avg Occupancy: {avg_occupancy:.1f}%
+
+━━━━━━━━━━━━━━━━━━
+🏢 *Properties*
+━━━━━━━━━━━━━━━━━━
+• Total: {len(properties)}
+• With Optimizations: {overrides_count}
+
+━━━━━━━━━━━━━━━━━━
+_Reply with property name for details._"""
+
+
+async def _format_executive_summary(user_id: str, properties: List[Dict]) -> str:
+    """Format executive summary response."""
+    total_savings = 0
+    total_carbon = 0
+    top_actions = []
+    
+    for prop in properties:
+        insight = IntelligenceEngine.generate_copilot_insight(prop)
+        recommendations = IntelligenceEngine.generate_recommendations(prop)
+        
+        total_savings += insight["monthly_savings"]
+        total_carbon += insight["carbon_impact_kg"]
+        
+        if recommendations:
+            top_rec = max(recommendations, key=lambda x: x["financial_impact"])
+            top_actions.append({
+                "property": prop["name"],
+                "action": top_rec["title"],
+                "impact": top_rec["financial_impact"]
+            })
+    
+    top_actions = sorted(top_actions, key=lambda x: x["impact"], reverse=True)[:3]
+    
+    actions_text = "\n".join([
+        f"• {a['property']}: {a['action']} ({whatsapp_service.format_currency_inr(a['impact'])})"
+        for a in top_actions
+    ])
+    
+    return f"""📈 *Executive Summary*
+
+━━━━━━━━━━━━━━━━━━
+💰 *Savings Potential*
+━━━━━━━━━━━━━━━━━━
+• Monthly: {whatsapp_service.format_currency_inr(total_savings)}
+• Annual: {whatsapp_service.format_currency_inr(total_savings * 12)}
+• Carbon Reduction: {total_carbon:,.0f} kg CO₂
+
+━━━━━━━━━━━━━━━━━━
+🎯 *Top Actions*
+━━━━━━━━━━━━━━━━━━
+{actions_text}
+
+_Reply 'recommendations' for full list._"""
+
+
+async def _format_portfolio_overview(user_id: str, properties: List[Dict]) -> str:
+    """Format portfolio overview."""
+    lines = ["📋 *Portfolio Overview*\n"]
+    
+    for prop in properties:
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        
+        status_emoji = "🟢" if recent_occupancy >= 0.7 else "🟡" if recent_occupancy >= 0.5 else "🔴"
+        
+        state = await user_state_service.get_user_state(user_id, prop["property_id"]) if user_id else None
+        override_marker = " ⚙️" if state and state.get("closed_floors") else ""
+        
+        lines.append(f"{status_emoji} *{prop['name']}*{override_marker}")
+        lines.append(f"   📊 {recent_occupancy*100:.0f}% occupancy | {prop['location']}\n")
+    
+    lines.append("\n_⚙️ = Custom optimization active_")
+    return "\n".join(lines)
+
+
+async def _format_property_details(user_id: str, property_id: str, property_name: str) -> str:
+    """Format detailed property response with user overrides."""
+    prop = property_store.get_by_id(property_id)
+    if not prop:
+        return f"❌ Property not found: {property_name}"
+    
+    # Get user state
+    user_state = await user_state_service.get_user_state(user_id, property_id) if user_id else None
+    
+    digital_twin = prop.get("digital_twin", {})
+    daily_data = digital_twin.get("daily_history", [])
+    recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+    
+    financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+    efficiency = IntelligenceEngine.calculate_efficiency_score(prop)
+    utilization = IntelligenceEngine.classify_utilization(recent_occupancy)
+    recommendations = IntelligenceEngine.generate_recommendations(prop)
+    
+    closed_floors = user_state.get("closed_floors", []) if user_state else []
+    total_floors = prop.get("floors", 0)
+    active_floors = total_floors - len(closed_floors)
+    
+    # Calculate savings if floors are closed
+    if closed_floors:
+        analytics = await _get_property_analytics_with_override(prop, user_state)
+        savings_text = f"""
+━━━━━━━━━━━━━━━━━━
+⚙️ *Your Optimization*
+━━━━━━━━━━━━━━━━━━
+• Closed Floors: {', '.join(map(str, closed_floors))}
+• Active: {active_floors}/{total_floors}
+• Monthly Savings: {whatsapp_service.format_currency_inr(analytics.get('monthly_savings', 0))}
+• Energy Reduction: {analytics.get('energy_reduction_pct', 0):.1f}%"""
+    else:
+        savings_text = ""
+    
+    # Top recommendation
+    rec_text = ""
+    if recommendations:
+        top_rec = recommendations[0]
+        rec_text = f"""
+━━━━━━━━━━━━━━━━━━
+💡 *Top Recommendation*
+━━━━━━━━━━━━━━━━━━
+{top_rec['title']}
+Impact: {whatsapp_service.format_currency_inr(top_rec['financial_impact'])}/month"""
+    
+    return f"""📊 *{property_name}*
+
+📍 {prop['location']} | {prop['type']}
+
+━━━━━━━━━━━━━━━━━━
+📈 *Performance*
+━━━━━━━━━━━━━━━━━━
+• Occupancy: {recent_occupancy*100:.1f}%
+• Utilization: {utilization}
+• Efficiency: {efficiency}%
+• Floors: {total_floors}
+
+━━━━━━━━━━━━━━━━━━
+💰 *Financials*
+━━━━━━━━━━━━━━━━━━
+• Revenue: {whatsapp_service.format_currency_inr(financials['revenue'])}
+• Profit: {whatsapp_service.format_currency_inr(financials['profit'])}
+• Energy Cost: {whatsapp_service.format_currency_inr(financials['energy_cost'])}{savings_text}{rec_text}"""
+
+
+async def _format_energy_report(user_id: str, property_id: str, property_name: str) -> str:
+    """Format energy savings report."""
+    prop = property_store.get_by_id(property_id)
+    if not prop:
+        return f"❌ Property not found: {property_name}"
+    
+    user_state = await user_state_service.get_user_state(user_id, property_id) if user_id else None
+    closed_floors = user_state.get("closed_floors", []) if user_state else []
+    
+    digital_twin = prop.get("digital_twin", {})
+    daily_data = digital_twin.get("daily_history", [])
+    recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+    
+    savings = IntelligenceEngine.calculate_energy_savings(prop, recent_occupancy, closed_floors)
+    
+    total_floors = prop.get("floors", 0)
+    baseline = prop.get("baseline_energy_intensity", 150) * total_floors * 30
+    
+    return f"""⚡ *Energy Report: {property_name}*
+
+━━━━━━━━━━━━━━━━━━
+📊 *Energy Analysis*
+━━━━━━━━━━━━━━━━━━
+• Baseline: {baseline:,.0f} kWh/month
+• Current: {baseline - savings.get('energy_saved_kwh', 0):,.0f} kWh/month
+• Reduction: {savings.get('energy_reduction_percentage', 0):.1f}%
+
+━━━━━━━━━━━━━━━━━━
+💰 *Savings*
+━━━━━━━━━━━━━━━━━━
+• Weekly: {whatsapp_service.format_currency_inr(savings.get('monthly_cost_savings', 0)/4)}
+• Monthly: {whatsapp_service.format_currency_inr(savings.get('monthly_cost_savings', 0))}
+• Annual: {whatsapp_service.format_currency_inr(savings.get('monthly_cost_savings', 0)*12)}
+
+━━━━━━━━━━━━━━━━━━
+🌱 *Environmental*
+━━━━━━━━━━━━━━━━━━
+• Carbon Reduction: {savings.get('carbon_reduction_kg', 0):,.0f} kg CO₂"""
+
+
+def _format_recommendations(property_name: str, recommendations: List[Dict]) -> str:
+    """Format recommendations response."""
+    if not recommendations:
+        return f"✅ No recommendations for {property_name} - all metrics within optimal range."
+    
+    rec_lines = []
+    for i, rec in enumerate(recommendations[:5], 1):
+        priority_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(rec.get("priority", "medium"), "⚪")
+        rec_lines.append(f"{priority_emoji} *{i}. {rec['title']}*")
+        rec_lines.append(f"   Impact: {whatsapp_service.format_currency_inr(rec['financial_impact'])}/month\n")
+    
+    return f"""💡 *Recommendations: {property_name}*
+
+━━━━━━━━━━━━━━━━━━
+{chr(10).join(rec_lines)}
+_🔴 High | 🟡 Medium | 🟢 Low priority_"""
+
+
+async def _format_portfolio_recommendations(properties: List[Dict]) -> str:
+    """Format recommendations across all properties."""
+    all_recs = []
+    
+    for prop in properties:
+        recommendations = IntelligenceEngine.generate_recommendations(prop)
+        for rec in recommendations[:2]:
+            all_recs.append({
+                "property": prop["name"],
+                **rec
+            })
+    
+    # Sort by impact
+    all_recs = sorted(all_recs, key=lambda x: x["financial_impact"], reverse=True)[:5]
+    
+    lines = ["💡 *Top Portfolio Recommendations*\n"]
+    for i, rec in enumerate(all_recs, 1):
+        lines.append(f"*{i}. {rec['property']}*")
+        lines.append(f"   {rec['title']}")
+        lines.append(f"   Impact: {whatsapp_service.format_currency_inr(rec['financial_impact'])}/month\n")
+    
+    return "\n".join(lines)
+
+
+async def _format_active_alerts(user_id: str, properties: List[Dict]) -> str:
+    """Format active alerts across all properties."""
+    all_alerts = []
+    
+    for prop in properties:
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        
+        if len(daily_data) >= 2:
             recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
             
-            financials = IntelligenceEngine.calculate_financials(matched_property, recent_occupancy)
-            efficiency_score = IntelligenceEngine.calculate_efficiency_score(matched_property)
-            utilization = IntelligenceEngine.classify_utilization(recent_occupancy)
-            recommendations = IntelligenceEngine.generate_recommendations(matched_property)
+            recent_energy = sum(d.get("energy_kwh", 0) for d in daily_data[-7:])
+            prev_energy = sum(d.get("energy_kwh", 0) for d in daily_data[-14:-7]) if len(daily_data) >= 14 else recent_energy
+            energy_change = ((recent_energy - prev_energy) / prev_energy * 100) if prev_energy > 0 else 0
             
-            # Use template for property details
-            rec_data = None
-            if recommendations:
-                top_rec = recommendations[0]
-                rec_data = {
-                    "title": top_rec["title"],
-                    "impact": whatsapp_service.format_currency_inr(top_rec["financial_impact"])
-                }
+            financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
             
-            response_text = templates.property_details(
-                name=matched_property["name"],
-                location=matched_property["location"],
+            alerts = whatsapp_service.check_and_generate_alerts(
+                property_name=prop["name"],
+                occupancy_rate=recent_occupancy,
+                utilization_rate=recent_occupancy,
+                energy_change_percent=energy_change,
+                financials=financials
+            )
+            all_alerts.extend(alerts)
+    
+    if not all_alerts:
+        return """✅ *No Active Alerts*
+
+All properties operating within normal parameters.
+
+*Monitoring thresholds:*
+• Occupancy >90% → Alert
+• Utilization <40% → Alert
+• Energy spike >15% → Alert"""
+    
+    lines = [f"⚠️ *{len(all_alerts)} Active Alert(s)*\n"]
+    
+    for alert in all_alerts:
+        emoji = {"high_occupancy": "🔴", "low_utilization": "🟡", "energy_spike": "⚡"}.get(alert["type"], "📊")
+        lines.append(f"{emoji} *{alert['property_name']}*")
+        lines.append(f"   {alert['type'].replace('_', ' ').title()}: {alert['metric_value']:.1f}%")
+        lines.append(f"   Impact: {whatsapp_service.format_currency_inr(alert['financial_impact'])}\n")
+    
+    return "\n".join(lines)
+
+
+async def _format_system_status(user_id: str, phone: str, properties: List[Dict]) -> str:
+    """Format system status response."""
+    global _alert_scheduler, _whatsapp_linking_service
+    
+    scheduler_status = "Running" if _alert_scheduler and _alert_scheduler.is_running else "Stopped"
+    subs_count = len(await _alert_scheduler.get_all_active_subscriptions()) if _alert_scheduler else 0
+    
+    linked = await _whatsapp_linking_service.get_linking_status(user_id) if _whatsapp_linking_service and user_id else {"linked": False}
+    
+    user_states = await user_state_service.get_all_user_states(user_id) if user_id else []
+    active_optimizations = sum(1 for s in user_states if s.get("closed_floors"))
+    
+    return f"""🔧 *System Status*
+
+━━━━━━━━━━━━━━━━━━
+📱 *WhatsApp Service*
+━━━━━━━━━━━━━━━━━━
+• Status: {"✅ Active" if whatsapp_service.is_configured else "❌ Not Configured"}
+• Account Linked: {"✅ Yes" if linked.get("linked") else "❌ No"}
+• Alert Scheduler: {scheduler_status}
+• Subscribers: {subs_count}
+
+━━━━━━━━━━━━━━━━━━
+🏢 *Your Data*
+━━━━━━━━━━━━━━━━━━
+• Properties: {len(properties)}
+• Active Optimizations: {active_optimizations}
+
+━━━━━━━━━━━━━━━━━━
+📊 *MCP Endpoint*
+━━━━━━━━━━━━━━━━━━
+• Status: ✅ Active
+• Tools: 5 available"""
+
+
+def _format_property_list(properties: List[Dict]) -> str:
+    """Format property list response."""
+    lines = ["📋 *Property Portfolio*\n"]
+    
+    for prop in properties:
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        
+        status = "🟢" if recent_occupancy >= 0.7 else "🟡" if recent_occupancy >= 0.5 else "🔴"
+        
+        lines.append(f"{status} *{prop['name']}*")
+        lines.append(f"   📍 {prop['location']}")
+        lines.append(f"   📊 {recent_occupancy*100:.0f}% occupancy\n")
+    
+    lines.append("_Reply with property name for details._")
+    return "\n".join(lines)
                 prop_type=matched_property["type"],
                 occupancy=round(recent_occupancy * 100, 1),
                 utilization=utilization,
