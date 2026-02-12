@@ -9,7 +9,7 @@ class PropTechAPITester:
     def __init__(self, base_url="https://property-decision-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_base = f"{base_url}/api"
-        self.session_token = "test_session_1770903238467"  # From MongoDB test user creation
+        self.session_token = "test_session_1770908835253"  # Updated from agent context
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []
