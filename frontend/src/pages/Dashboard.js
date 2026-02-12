@@ -275,6 +275,11 @@ export default function Dashboard() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* WhatsApp Control */}
+        <div className="animate-fade-in stagger-7">
+          <WhatsAppLinking />
+        </div>
       </div>
 
       {/* Property Overview */}
