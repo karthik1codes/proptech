@@ -1053,7 +1053,9 @@ async def _handle_whatsapp_webhook(body: str, from_number: str):
             CommandIntent.STATUS, CommandIntent.UNKNOWN,
             CommandIntent.PROPERTY_DETAILS, CommandIntent.CHECK_ALERTS,
             CommandIntent.GET_RECOMMENDATIONS, CommandIntent.SUBSCRIBE_ALERTS,
-            CommandIntent.UNSUBSCRIBE_ALERTS
+            CommandIntent.UNSUBSCRIBE_ALERTS, CommandIntent.SHOW_DASHBOARD,
+            CommandIntent.EXECUTIVE_SUMMARY, CommandIntent.PORTFOLIO_OVERVIEW,
+            CommandIntent.ENERGY_REPORT
         }
         
         # Check if command requires authentication (write operations)
