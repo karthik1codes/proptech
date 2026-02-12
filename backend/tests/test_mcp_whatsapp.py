@@ -259,7 +259,7 @@ class TestWhatsAppEndpoints:
         print("✅ WhatsApp webhook 'list' command working")
     
     def test_whatsapp_webhook_property_query(self):
-        """Test WhatsApp webhook with property name query"""
+        """Test WhatsApp webhook with property name query (requires linking)"""
         response = requests.post(
             f"{BASE_URL}/api/whatsapp/webhook",
             data={"Body": "Horizon Tech Park", "From": "whatsapp:+1234567890"},
@@ -271,12 +271,11 @@ class TestWhatsAppEndpoints:
         assert '<?xml version="1.0"' in content
         assert "<Response>" in content
         
-        # Should return property analytics
-        assert "Horizon Tech Park" in content
-        assert "Analytics" in content or "Occupancy" in content
-        assert "Financials" in content or "Revenue" in content
+        # Property details now require account linking (multi-user system)
+        # Users should use 'list' command for no-auth property overview
+        assert "Account Not Linked" in content or "Link" in content
         
-        print("✅ WhatsApp webhook property name query working")
+        print("✅ WhatsApp webhook property query correctly requires linking")
     
     def test_whatsapp_webhook_help_command(self):
         """Test WhatsApp webhook with 'help' command"""
