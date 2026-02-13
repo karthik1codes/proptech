@@ -60,7 +60,7 @@ export default function ExecutiveSummary() {
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `PropTech_Executive_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
+      link.setAttribute('download', `Infranomic_Executive_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -342,7 +342,7 @@ export default function ExecutiveSummary() {
                 </tr>
               </thead>
               <tbody>
-                {benchmarks.map((b) => {
+                {benchmarks.length > 0 ? benchmarks.map((b) => {
                   const closedFloors = getClosedFloors(b.property_id);
                   const hasOptimization = closedFloors.length > 0;
                   
