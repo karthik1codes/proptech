@@ -21,10 +21,11 @@ load_dotenv(ROOT_DIR / '.env')
 from services.whatsapp_service import whatsapp_service, WhatsAppService, MessageTemplates
 from services.conversation_history import ConversationHistory
 from services.alert_scheduler import AlertScheduler, init_alert_scheduler
-from services.user_state_service import UserPropertyStateService, init_user_state_service
+from services.user_state_service import UserPropertyStateService, init_user_state_service, set_change_log_service
 from services.whatsapp_linking_service import WhatsAppLinkingService, init_whatsapp_linking_service
 from services.command_parser import CommandParser, CommandIntent, ParsedCommand, init_command_parser
 from services.pdf_generator import PDFReportGenerator, init_pdf_generator
+from services.change_log_service import ChangeLogService, init_change_log_service
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
