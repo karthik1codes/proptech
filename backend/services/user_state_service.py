@@ -1,6 +1,7 @@
 """
 User Property State Service
 Manages per-user optimization state with MongoDB persistence
+Integrates with ChangeLogService for audit trail
 """
 
 import logging
@@ -10,11 +11,20 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 logger = logging.getLogger(__name__)
 
+# Forward reference to avoid circular import
+_change_log_service = None
+
+def set_change_log_service(service):
+    """Set the change log service reference."""
+    global _change_log_service
+    _change_log_service = service
+
 
 class UserPropertyStateService:
     """
     Manages per-user property optimization states.
     Ensures multi-user isolation - each user sees only their own overrides.
+    All changes are logged to user_change_log for audit trail.
     """
     
     COLLECTION_NAME = "user_property_states"
