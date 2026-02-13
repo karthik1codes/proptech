@@ -69,7 +69,7 @@ export default function Layout({ children }) {
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-background animate-pulse"></div>
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-bold tracking-tight text-white">PropTech</h1>
+                <h1 className="text-lg font-bold tracking-tight text-white">Infranomic</h1>
                 <p className="text-xs text-cyan-400 font-medium -mt-0.5 flex items-center gap-1">
                   <Sparkles className="w-3 h-3" />
                   Decision Copilot
