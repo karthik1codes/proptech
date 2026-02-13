@@ -607,6 +607,59 @@ export default function ScenarioSimulator() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Calculation Breakdown */}
+              <Card className="glass" data-testid="calculation-breakdown">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-cyan-400" />
+                    How These Numbers Are Calculated
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-slate-400 space-y-4">
+                  <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <p className="text-slate-300 font-medium mb-2">💰 Monthly Savings Formula</p>
+                    <p className="font-mono text-xs text-cyan-400 mb-2">
+                      = (Energy Savings + Maintenance Savings) × 30 days
+                    </p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• <strong>Energy Savings</strong>: Reduced power consumption from closed floors ({formatCurrency(simulation.energy_impact.daily_savings)}/day)</li>
+                      <li>• <strong>Maintenance Savings</strong>: ₹{selectedProperty?.maintenance_per_floor?.toLocaleString()}/floor/month × {floorsToClose.length} floors</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <p className="text-slate-300 font-medium mb-2">⚡ Energy Reduction Formula</p>
+                    <p className="font-mono text-xs text-cyan-400 mb-2">
+                      = (Current Energy - Projected Energy) / Current Energy × 100
+                    </p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• <strong>Current Energy</strong>: {simulation.energy_impact.before_energy_usage?.toFixed(1)} kWh/day at {formatPercent(simulation.current_state.occupancy_rate)} occupancy</li>
+                      <li>• <strong>Projected Energy</strong>: {simulation.energy_impact.after_energy_usage?.toFixed(1)} kWh/day with {floorsToClose.length} floor(s) closed</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <p className="text-slate-300 font-medium mb-2">🌱 Carbon Reduction Formula</p>
+                    <p className="font-mono text-xs text-cyan-400 mb-2">
+                      = Energy Reduction × Grid Emission Factor × 30 days
+                    </p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• <strong>Grid Emission Factor</strong>: 0.82 kg CO₂/kWh (India average)</li>
+                      <li>• <strong>Energy Saved</strong>: {(simulation.energy_impact.before_energy_usage - simulation.energy_impact.after_energy_usage)?.toFixed(1)} kWh/day</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <p className="text-emerald-400 font-medium mb-1">📊 Data Sources</p>
+                    <p className="text-xs">
+                      Calculations are based on real-time digital twin data from the last 7 days, 
+                      property-specific rates (₹{selectedProperty?.revenue_per_seat?.toLocaleString()}/seat revenue, 
+                      ₹{selectedProperty?.energy_cost_per_unit}/kWh), and your selected floor closures.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             </>
           ) : (
             <Card className="glass h-full flex items-center justify-center" data-testid="no-simulation">
