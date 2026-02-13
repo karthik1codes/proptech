@@ -212,12 +212,25 @@ class UserPropertyStateService:
                     changes["hybrid_intensity"] = (old_val, hybrid_intensity)
             if target_occupancy is not None:
                 update_fields["target_occupancy"] = target_occupancy
+                old_val = old_state.get("target_occupancy") if old_state else None
+                if old_val != target_occupancy:
+                    changes["target_occupancy"] = (old_val, target_occupancy)
             
             await self.collection.update_one(
                 {"user_id": user_id, "property_id": property_id},
                 {"$set": update_fields},
                 upsert=True
             )
+            
+            # Log changes
+            if _change_log_service and changes:
+                await _change_log_service.log_changes_batch(
+                    user_id=user_id,
+                    entity_type="property_state",
+                    entity_id=property_id,
+                    changes=changes,
+                    session_id=session_id
+                )
             
             return {"success": True, "updated": update_fields}
             
@@ -229,7 +242,8 @@ class UserPropertyStateService:
         self,
         user_id: str,
         property_id: str,
-        simulation_result: Dict[str, Any]
+        simulation_result: Dict[str, Any],
+        session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Save last simulation result for a user's property."""
         try:
@@ -244,6 +258,18 @@ class UserPropertyStateService:
                 upsert=True
             )
             
+            # Log simulation
+            if _change_log_service:
+                await _change_log_service.log_change(
+                    user_id=user_id,
+                    entity_type="simulation",
+                    entity_id=property_id,
+                    field="simulation_result",
+                    old_value=None,
+                    new_value={"floors": simulation_result.get("floors", [])},
+                    session_id=session_id
+                )
+            
             return {"success": True}
             
         except Exception as e:
@@ -253,15 +279,32 @@ class UserPropertyStateService:
     async def reset_property_state(
         self,
         user_id: str,
-        property_id: str
+        property_id: str,
+        session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Reset user's property state to defaults (removes override)."""
         try:
+            # Get current state for logging
+            old_state = await self.get_user_state(user_id, property_id)
+            
             result = await self.collection.delete_one(
                 {"user_id": user_id, "property_id": property_id}
             )
             
             if result.deleted_count > 0:
+                # Log the reset
+                if _change_log_service and old_state:
+                    await _change_log_service.log_change(
+                        user_id=user_id,
+                        entity_type="property_state",
+                        entity_id=property_id,
+                        field="state_reset",
+                        old_value=old_state.get("closed_floors", []),
+                        new_value=[],
+                        session_id=session_id,
+                        metadata={"action": "reset"}
+                    )
+                
                 logger.info(f"User {user_id} reset state for {property_id}")
                 return {"success": True, "message": "Property state reset to default"}
             else:
@@ -271,10 +314,31 @@ class UserPropertyStateService:
             logger.error(f"Failed to reset property state: {e}")
             return {"success": False, "error": str(e)}
     
-    async def reset_all_user_states(self, user_id: str) -> Dict[str, Any]:
+    async def reset_all_user_states(
+        self,
+        user_id: str,
+        session_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Reset all property states for a user."""
         try:
+            # Get all states for logging
+            old_states = await self.get_all_user_states(user_id)
+            
             result = await self.collection.delete_many({"user_id": user_id})
+            
+            # Log all resets
+            if _change_log_service and old_states:
+                for state in old_states:
+                    await _change_log_service.log_change(
+                        user_id=user_id,
+                        entity_type="property_state",
+                        entity_id=state.get("property_id", "unknown"),
+                        field="state_reset",
+                        old_value=state.get("closed_floors", []),
+                        new_value=[],
+                        session_id=session_id,
+                        metadata={"action": "reset_all"}
+                    )
             
             logger.info(f"User {user_id} reset all states ({result.deleted_count} properties)")
             
