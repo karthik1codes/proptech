@@ -2,13 +2,68 @@
 
 ## Latest Update: February 13, 2026
 
-### NEW: Complete Change Logging & Auto-Save System
+### COMPLETED: Global State Synchronization System
 
-Full audit trail with session tracking and frontend auto-save.
+Implemented unified state management across all pages. Changes made in the Scenario Simulator now reflect globally:
+- **Dashboard**: Shows "Active Optimizations" banner with floor count and estimated savings
+- **Executive Summary**: Displays realized savings from active optimizations
+- **Property Portfolio**: Property cards show optimization badges (e.g., "2 closed")
+- **Property Detail**: Floor plan visualization shows closed floors in red with lock icon
+- **Scenario Simulator**: Syncs with global state, shows "Apply Changes Globally" button
 
 ---
 
-## Change Logging System (`backend/services/change_log_service.py`)
+## Global State Architecture
+
+### Frontend Context (`/app/frontend/src/context/PropertyStateContext.js`)
+
+```javascript
+// Key exports:
+PropertyStateProvider  // Wrap at App level
+usePropertyState()     // Hook for all pages
+
+// State:
+userStates             // { property_id: { closed_floors: [], ... } }
+properties             // Array of property objects
+lastUpdate             // Timestamp for re-render triggers
+
+// Actions:
+closeFloors(propertyId, floors)   // Close floors with optimistic update
+openFloors(propertyId, floors)    // Open floors
+toggleFloor(propertyId, floor)    // Toggle single floor
+resetProperty(propertyId)         // Reset to default
+resetAll()                        // Reset all properties
+getClosedFloors(propertyId)       // Get closed floors for a property
+```
+
+### Backend API Endpoints
+
+- `GET /api/user-state` - Get all user property states
+- `GET /api/user-state/{property_id}` - Get state for specific property
+- `POST /api/user-state/{property_id}/close-floors` - Close floors (body: `{floors: [1,2,3]}`)
+- `POST /api/user-state/{property_id}/open-floors` - Open floors
+- `POST /api/user-state/{property_id}/reset` - Reset property state
+- `POST /api/user-state/reset-all` - Reset all property states
+
+### MongoDB Collection: `user_property_states`
+
+```json
+{
+  "user_id": "google-oauth-id",
+  "property_id": "prop_001",
+  "closed_floors": [6, 7, 8],
+  "hybrid_intensity": 1.0,
+  "target_occupancy": null,
+  "last_simulation_result": {...},
+  "updated_at": "2026-02-13T01:30:00Z"
+}
+```
+
+---
+
+## Previous Features (Still Active)
+
+### Change Logging System (`backend/services/change_log_service.py`)
 
 **MongoDB Collections:**
 - `user_change_log` - Full audit trail
@@ -48,13 +103,13 @@ Full audit trail with session tracking and frontend auto-save.
 
 ---
 
-### PREVIOUS: Fully Conversational Multi-User PropTech Copilot
+### Fully Conversational Multi-User PropTech Copilot (WhatsApp)
 
 Every website action is now executable via WhatsApp with strict multi-user isolation.
 
 ---
 
-## New Services Implemented
+## Services Implemented
 
 ### 1. Per-User Optimization State (`backend/services/user_state_service.py`)
 - MongoDB collection: `user_property_states`
@@ -84,14 +139,6 @@ Every website action is now executable via WhatsApp with strict multi-user isola
   - GET `/api/reports/property/{property_id}/pdf`
   - GET `/api/reports/executive-summary/pdf`
   - GET `/api/reports/energy/{property_id}/pdf`
-
-### 5. User State APIs
-- GET `/api/user-state/{property_id}` - Get user's property state
-- GET `/api/user-state` - Get all user states
-- POST `/api/user-state/{property_id}/close-floors` - Close floors
-- POST `/api/user-state/{property_id}/open-floors` - Open floors
-- POST `/api/user-state/{property_id}/reset` - Reset property
-- POST `/api/user-state/reset-all` - Reset all
 
 ---
 
@@ -134,7 +181,7 @@ Every website action is now executable via WhatsApp with strict multi-user isola
 
 ---
 
-## Response Format
+## Response Format (WhatsApp)
 
 Every WhatsApp response includes:
 - Monthly savings (₹ formatted)
@@ -155,7 +202,19 @@ MongoDB Collections:
 ├── whatsapp_otp_codes (verification codes, auto-expire)
 ├── whatsapp_conversations (chat history)
 ├── alert_subscriptions (alert subscribers)
-└── alert_logs (sent alerts)
+├── alert_logs (sent alerts)
+├── user_change_log (audit trail)
+└── user_sessions (session tracking)
+
+Frontend Context:
+└── PropertyStateContext (global state management)
+    ├── userStates
+    ├── properties
+    ├── closeFloors()
+    ├── openFloors()
+    ├── toggleFloor()
+    ├── resetProperty()
+    └── getClosedFloors()
 
 Services:
 ├── UserPropertyStateService
@@ -163,192 +222,105 @@ Services:
 ├── CommandParser
 ├── PDFReportGenerator
 ├── AlertScheduler
-└── ConversationHistory
+├── ConversationHistory
+└── ChangeLogService
 ```
 
 ---
 
-### Previous Features (Still Active)
+## Test Coverage
 
-**WhatsApp Message Templates**
-- `MessageTemplates` class with pre-defined templates
-- Consistent formatting with emojis and separators
+### Test Report: iteration_8.json
+- **Backend**: 17/17 tests passed (100%)
+- **Frontend**: All UI elements verified (100%)
+- **Test File**: `/app/backend/tests/test_global_state_sync.py`
 
-**Conversation History Persistence**
-- MongoDB collection: `whatsapp_conversations`
-- Saves all inbound/outbound messages with metadata
-
-**Scheduled Alert Checks**
-- Background task runs every 30 minutes
-- Thresholds: occupancy >90%, utilization <40%, energy spike >15%
-
----
-
-### Previous Upgrade: Clean MCP Implementation & WhatsApp Integration
-
-**Changes Made:**
-1. **MCP Endpoint Cleanup**
-   - Moved MCP to root-level `/mcp` (also accessible at `/api/mcp` for external access)
-   - Updated response format with `annotations: []` and `isError` fields
-   - Removed OpenAI-exclusive MCP server and related endpoints
-   - MCP reuses existing analytics engine functions
-   - MCP does NOT require authentication
-
-2. **Twilio WhatsApp Integration Added**
-   - New service module: `backend/services/whatsapp_service.py`
-   - Webhook endpoint: `POST /whatsapp/webhook` and `/api/whatsapp/webhook`
-   - Authenticated send endpoint: `POST /api/whatsapp/send`
-   - Property alert system: `POST /api/whatsapp/alert`
-   - Status check: `GET /api/whatsapp/status`
-   
-   **Alert Thresholds:**
-   - High Occupancy: > 90%
-   - Low Utilization: < 40%
-   - Energy Spike: > 15%
-
-   **Environment Variables Required:**
-   - `TWILIO_ACCOUNT_SID`
-   - `TWILIO_AUTH_TOKEN`
-   - `TWILIO_WHATSAPP_NUMBER`
-   - `ALERT_CHECK_INTERVAL` (optional, default: 1800 seconds)
+### Verified Features:
+- Global state context initialization
+- Floor closure persistence to backend
+- State reflection on Dashboard, Executive, Portfolio, PropertyDetail pages
+- FloorPlanVisualization shows closed floors with visual indicators
+- Reset functionality works correctly
+- All API endpoints working
 
 ---
-
-## Overview
-**Product Name:** PropTech Decision Copilot  
-**Version:** 1.0.0  
-**Last Updated:** 2026-02-12  
-
-## Problem Statement
-Build a production-ready full-stack AI PropTech Decision Copilot with Google OAuth authentication, dynamic property portfolio management, advanced visualization, quantified optimization engine, and enterprise-grade UI.
-
-## User Personas
-1. **Real Estate Managers** - Need occupancy tracking and portfolio oversight
-2. **Facility Managers** - Focus on energy optimization and maintenance
-3. **Operations Teams** - Day-to-day property management decisions
-4. **C-Suite Executives** - Strategic overview and ROI insights
-
-## Core Requirements
-
-### Authentication
-- [x] Google OAuth via Emergent Auth
-- [x] Session management with secure cookies
-- [x] Protected API routes
-
-### Property Portfolio System
-- [x] In-memory property store with 3 preloaded properties
-- [x] Digital twin generation (90-day occupancy, energy, bookings)
-- [x] Add new property feature
-- [x] Property search and filtering
-
-### Intelligence Engine
-- [x] 7-day occupancy forecasting with moving average
-- [x] Utilization classification (Underutilized/Optimal/Overloaded)
-- [x] Financial model (Revenue, Energy, Maintenance, Profit)
-- [x] Energy savings calculator
-- [x] What-if floor closure simulator
-- [x] Utilization efficiency score
-
-### Visualization
-- [x] Interactive floor plan with room-level metrics
-- [x] Occupancy trend charts (30-day history, 7-day forecast)
-- [x] Energy comparison charts
-- [x] Portfolio benchmarking with rankings
-
-### Currency Localization
-- [x] Indian Rupee (₹) formatting
-- [x] Lakhs & Crores notation
-
-## What's Been Implemented (2026-02-12)
-
-### Backend (FastAPI)
-- `/api/auth/session` - Exchange session_id for token
-- `/api/auth/me` - Get current user
-- `/api/auth/logout` - Clear session
-- `/api/properties` - List all properties
-- `/api/properties/{id}` - Get property details with digital twin
-- `/api/properties` (POST) - Add new property
-- `/api/analytics/dashboard` - Dashboard KPIs
-- `/api/analytics/portfolio-benchmark` - Property rankings
-- `/api/analytics/simulate-floor-closure` - What-if simulator
-- `/api/analytics/energy-savings/{id}` - Energy optimization scenarios
-- `/api/recommendations/{id}` - AI recommendations
-- `/api/copilot/{id}` - Copilot insight per property
-- `/api/copilot/executive-summary` - Portfolio-wide executive summary
-
-### Frontend (React)
-- Login page with Google OAuth
-- Dashboard with KPI cards and charts
-- Property Portfolio page with search/filter
-- Property Detail page with tabs (Overview, Floor Plan, Energy, Recommendations)
-- Scenario Simulator with floor selection and hybrid intensity
-- Executive Summary with benchmarking table
-
-### Design System
-- Dark mode default with light mode toggle
-- Glassmorphism effects
-- Animated counters
-- Color-coded utilization indicators
-- Responsive bento grid layout
 
 ## Prioritized Backlog
 
-### P0 (Critical) - Done
+### P0 (Critical) - Completed
+- [x] Global State Synchronization
 - [x] Authentication flow
 - [x] Property CRUD
 - [x] Dashboard with KPIs
 - [x] Floor closure simulation
+- [x] WhatsApp integration
+- [x] Change logging
+- [x] PDF reports
 
 ### P1 (High) - Future
 - [ ] Real-time data updates (WebSocket)
-- [ ] Export reports to PDF
-- [ ] Email alerts for utilization thresholds
-- [ ] Multi-user property sharing
+- [ ] Enhanced AI recommendation engine with user context
+- [ ] Mobile app version
 
 ### P2 (Medium) - Future
 - [ ] Historical comparison reports
 - [ ] Custom date range analytics
 - [ ] Booking system integration
-- [ ] Mobile app version
-
-## Next Tasks
-1. Add unit tests for backend APIs
-2. Implement real-time occupancy updates
-3. Add PDF export for executive reports
-4. Integrate with building management systems
+- [ ] Multi-language support
 
 ---
 
-## Update: v1.1.0 (2026-02-12) - MCP Integration & Premium UI
+## Environment Variables
 
-### New Features
+### Backend (`/app/backend/.env`)
+```
+MONGO_URL=<mongodb_url>
+DB_NAME=proptech_copilot
+TWILIO_ACCOUNT_SID=<twilio_sid>
+TWILIO_AUTH_TOKEN=<twilio_token>
+TWILIO_WHATSAPP_NUMBER=<whatsapp_number>
+```
 
-#### MCP (Model Context Protocol) Integration
-- Added `/api/mcp` endpoint for AI assistant integration (ChatGPT, Claude)
-- JSON-RPC style protocol with 5 tools:
-  - `list_properties` - Portfolio overview with all properties
-  - `get_property_overview` - Detailed property metrics
-  - `simulate_floor_closure` - What-if scenario analysis
-  - `energy_savings_report` - Energy optimization scenarios
-  - `get_recommendations` - AI recommendations with impact analysis
-- All responses formatted in markdown for better AI consumption
-- See README.md for ngrok/Cloudflare tunnel instructions
+### Frontend (`/app/frontend/.env`)
+```
+REACT_APP_BACKEND_URL=<preview_url>
+```
 
-#### Dark Mode Only - Premium UI
-- Removed light mode toggle (dark mode permanent)
-- Deep dark gradient backgrounds
-- Glassmorphism cards with blur effects
-- Cyan/blue glow accents
-- Animated gradient borders on hover
-- Premium loading spinner
-- Polished navigation with active state indicators
-- Enhanced login page with stats and features showcase
+---
 
-### Technical Changes
-- Backend: Added MCPHandler class with tool implementations
-- Frontend: Removed ThemeContext, updated all components for dark-only
-- CSS: New premium variables, glassmorphism utilities, glow effects
-- README: Added MCP documentation section
+## Technical Stack
 
-### Breaking Changes
-- None - OAuth and all existing APIs work unchanged
+- **Backend**: FastAPI, MongoDB (Motor async), Twilio, ReportLab, APScheduler
+- **Frontend**: React 18, Tailwind CSS, Chart.js, Recharts, Shadcn/UI
+- **State Management**: React Context (PropertyStateContext)
+- **Authentication**: Emergent-managed Google OAuth
+- **Database**: MongoDB Atlas
+
+---
+
+## Changelog
+
+### v1.3.0 (2026-02-13) - Global State Sync
+- Implemented PropertyStateContext for unified state management
+- Updated all pages to consume global state
+- Added "Active Optimizations" indicators across Dashboard, Executive, Portfolio
+- FloorPlanVisualization now shows closed floors with visual indicators
+- Tested with 100% pass rate
+
+### v1.2.0 (2026-02-13) - Change Logging
+- Added user_change_log MongoDB collection
+- Session tracking with change history
+- Frontend useAutoSave hook
+
+### v1.1.0 (2026-02-12) - WhatsApp & Multi-User
+- Twilio WhatsApp integration
+- Natural language command parser
+- Per-user property state isolation
+- PDF report generation
+
+### v1.0.0 (2026-02-12) - Initial Release
+- Google OAuth authentication
+- Property portfolio management
+- Digital twin visualization
+- Floor closure simulation
+- AI recommendations
