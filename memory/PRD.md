@@ -141,6 +141,8 @@ Enhanced dashboard with per-property:
 - Conversational bot via Twilio
 - Natural language command parser
 - Per-user state management
+- **Webhook URL**: `{BACKEND_URL}/api/whatsapp/webhook`
+- Configure this in Twilio Console → WhatsApp Sandbox → Webhook URL
 
 ### Change Logging
 - Audit trail in user_change_log collection
