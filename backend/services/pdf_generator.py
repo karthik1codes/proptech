@@ -255,7 +255,7 @@ class PDFReportGenerator:
         # Footer
         story.append(Spacer(1, 30))
         story.append(Paragraph(
-            "PropTech Decision Copilot - Confidential Report",
+            "Infranomic Decision Copilot - Confidential Report",
             self.styles['MetricLabel']
         ))
         
