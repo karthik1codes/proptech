@@ -620,7 +620,7 @@ class PDFReportGenerator:
             alignment=TA_CENTER
         )
         story.append(Paragraph(
-            "PropTech Decision Copilot | Confidential Executive Report | © 2026 All Rights Reserved",
+            "Infranomic Decision Copilot | Confidential Executive Report | © 2026 All Rights Reserved",
             footer_style
         ))
         
