@@ -403,7 +403,7 @@ class CommandParser:
     
     def get_help_text(self) -> str:
         """Get help text for available commands."""
-        return """🤖 *PropTech Copilot - Commands*
+        return """🤖 *Infranomic Decision Copilot - Commands*
 
 ━━━━━━━━━━━━━━━━━━
 *🏢 Floor Control*
@@ -425,12 +425,20 @@ class CommandParser:
 • *Show dashboard* - View main metrics
 • *Executive summary* - Portfolio overview
 • *Horizon details* - Property analytics
+• *Portfolio* - View all properties
 
 ━━━━━━━━━━━━━━━━━━
 *📄 Reports*
 ━━━━━━━━━━━━━━━━━━
 • *Download PDF* - Get summary report
 • *Energy report* - Energy savings analysis
+
+━━━━━━━━━━━━━━━━━━
+*💡 AI Features*
+━━━━━━━━━━━━━━━━━━
+• *Recommend* - Get AI suggestions
+• *Tips* - Optimization tips
+• *Advice for Horizon* - Property tips
 
 ━━━━━━━━━━━━━━━━━━
 *🔄 Reset*
