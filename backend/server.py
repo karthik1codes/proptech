@@ -2131,14 +2131,139 @@ async def unlink_phone(user: User = Depends(get_current_user)):
     return result
 
 
+# ==================== CHANGE LOG & SESSION ROUTES ====================
+
+class CreateSessionRequest(BaseModel):
+    device_info: Optional[str] = None
+
+
+@api_router.post("/sessions/create")
+async def create_user_session(
+    request: CreateSessionRequest,
+    user: User = Depends(get_current_user)
+):
+    """Create a new session for tracking changes."""
+    global _change_log_service
+    if not _change_log_service:
+        raise HTTPException(status_code=503, detail="Change log service not available")
+    
+    result = await _change_log_service.create_session(
+        user_id=user.user_id,
+        device_info=request.device_info
+    )
+    
+    return result
+
+
+@api_router.get("/sessions")
+async def get_user_sessions(
+    limit: int = 20,
+    user: User = Depends(get_current_user)
+):
+    """Get list of user's previous sessions."""
+    global _change_log_service
+    if not _change_log_service:
+        raise HTTPException(status_code=503, detail="Change log service not available")
+    
+    sessions = await _change_log_service.get_user_sessions(user.user_id, limit=limit)
+    return {"sessions": sessions, "count": len(sessions)}
+
+
+@api_router.get("/sessions/{session_id}")
+async def get_session_summary(
+    session_id: str,
+    user: User = Depends(get_current_user)
+):
+    """Get detailed summary of a session including all changes."""
+    global _change_log_service
+    if not _change_log_service:
+        raise HTTPException(status_code=503, detail="Change log service not available")
+    
+    summary = await _change_log_service.get_session_summary(session_id)
+    
+    if "error" in summary:
+        raise HTTPException(status_code=404, detail=summary["error"])
+    
+    return summary
+
+
+@api_router.post("/sessions/{session_id}/end")
+async def end_user_session(
+    session_id: str,
+    user: User = Depends(get_current_user)
+):
+    """Mark a session as ended."""
+    global _change_log_service
+    if not _change_log_service:
+        raise HTTPException(status_code=503, detail="Change log service not available")
+    
+    await _change_log_service.end_session(session_id)
+    return {"success": True, "message": "Session ended"}
+
+
+@api_router.get("/change-log")
+async def get_user_change_log(
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    limit: int = 100,
+    skip: int = 0,
+    user: User = Depends(get_current_user)
+):
+    """Get user's change history with optional filters."""
+    global _change_log_service
+    if not _change_log_service:
+        raise HTTPException(status_code=503, detail="Change log service not available")
+    
+    changes = await _change_log_service.get_user_changes(
+        user_id=user.user_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        session_id=session_id,
+        limit=limit,
+        skip=skip
+    )
+    
+    return {"changes": changes, "count": len(changes)}
+
+
+@api_router.get("/change-log/entity/{entity_type}/{entity_id}")
+async def get_entity_change_history(
+    entity_type: str,
+    entity_id: str,
+    limit: int = 50,
+    user: User = Depends(get_current_user)
+):
+    """Get complete change history for a specific entity."""
+    global _change_log_service
+    if not _change_log_service:
+        raise HTTPException(status_code=503, detail="Change log service not available")
+    
+    history = await _change_log_service.get_entity_history(entity_type, entity_id, limit=limit)
+    return {"entity_type": entity_type, "entity_id": entity_id, "history": history}
+
+
+@api_router.get("/change-log/stats")
+async def get_change_stats(user: User = Depends(get_current_user)):
+    """Get statistics about user's changes."""
+    global _change_log_service
+    if not _change_log_service:
+        raise HTTPException(status_code=503, detail="Change log service not available")
+    
+    stats = await _change_log_service.get_change_stats(user.user_id)
+    return stats
+
+
 # ==================== USER STATE ROUTES ====================
 
 class CloseFloorsRequest(BaseModel):
     floors: List[int]
+    session_id: Optional[str] = None
 
 class SimulationParamsRequest(BaseModel):
     hybrid_intensity: Optional[float] = None
     target_occupancy: Optional[float] = None
+    session_id: Optional[str] = None
 
 
 @api_router.get("/user-state/{property_id}")
