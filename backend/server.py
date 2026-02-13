@@ -3135,6 +3135,272 @@ async def get_energy_savings(property_id: str, user: User = Depends(get_current_
     }
 
 
+# ==================== AI RISK ANALYSIS ROUTES ====================
+
+@api_router.get("/ai/recommendations/{property_id}")
+async def get_ai_recommendations(property_id: str, user: User = Depends(get_current_user)):
+    """
+    Get AI-powered recommendations for a property (5-6 recommendations).
+    Uses OpenAI GPT for location-specific, contextual analysis.
+    """
+    prop = property_store.get_by_id(property_id)
+    
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    # Get user's current state for this property
+    user_state = await user_state_service.get_user_state(user.user_id, property_id)
+    
+    try:
+        recommendations = await ai_risk_service.generate_property_recommendations(prop, user_state)
+        return {
+            "property_id": property_id,
+            "property_name": prop["name"],
+            "location": prop["location"],
+            "recommendations": recommendations,
+            "count": len(recommendations)
+        }
+    except Exception as e:
+        logger.error(f"AI recommendation error: {e}")
+        # Fallback to regular recommendations
+        recs = IntelligenceEngine.generate_recommendations(prop)
+        return {
+            "property_id": property_id,
+            "property_name": prop["name"],
+            "location": prop["location"],
+            "recommendations": recs,
+            "count": len(recs),
+            "fallback": True
+        }
+
+
+@api_router.get("/ai/risk-analysis/{property_id}")
+async def get_ai_risk_analysis(property_id: str, user: User = Depends(get_current_user)):
+    """
+    Get comprehensive AI risk analysis for a property.
+    Includes location-specific risks, mitigation strategies, and opportunities.
+    """
+    prop = property_store.get_by_id(property_id)
+    
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    # Get user's current state
+    user_state = await user_state_service.get_user_state(user.user_id, property_id)
+    
+    try:
+        risk_analysis = await ai_risk_service.generate_risk_analysis(prop, user_state)
+        return risk_analysis
+    except Exception as e:
+        logger.error(f"AI risk analysis error: {e}")
+        # Generate fallback risk analysis
+        loc_data = get_location_risks(prop.get("location", ""))
+        return ai_risk_service._generate_fallback_risk_analysis(prop, loc_data)
+
+
+@api_router.get("/ai/portfolio-risk")
+async def get_portfolio_risk_analysis(user: User = Depends(get_current_user)):
+    """
+    Get AI risk analysis for entire portfolio.
+    """
+    properties = property_store.get_all()
+    
+    portfolio_risks = []
+    total_risk_score = 0
+    
+    for prop in properties:
+        user_state = await user_state_service.get_user_state(user.user_id, prop["property_id"])
+        
+        try:
+            risk_analysis = await ai_risk_service.generate_risk_analysis(prop, user_state)
+        except:
+            loc_data = get_location_risks(prop.get("location", ""))
+            risk_analysis = ai_risk_service._generate_fallback_risk_analysis(prop, loc_data)
+        
+        portfolio_risks.append({
+            "property_id": prop["property_id"],
+            "property_name": prop["name"],
+            "location": prop["location"],
+            "risk_score": risk_analysis.get("overall_risk_score", 50),
+            "risk_level": risk_analysis.get("risk_level", "MEDIUM"),
+            "top_risks": risk_analysis.get("key_risks", [])[:3]
+        })
+        total_risk_score += risk_analysis.get("overall_risk_score", 50)
+    
+    avg_risk = total_risk_score / len(properties) if properties else 0
+    
+    return {
+        "portfolio_risk_score": round(avg_risk),
+        "portfolio_risk_level": "CRITICAL" if avg_risk > 70 else "HIGH" if avg_risk > 55 else "MEDIUM" if avg_risk > 40 else "LOW",
+        "properties": portfolio_risks,
+        "total_properties": len(properties)
+    }
+
+
+@api_router.get("/ai/carbon-analysis/{property_id}")
+async def get_carbon_analysis(property_id: str, user: User = Depends(get_current_user)):
+    """
+    Get location-adjusted carbon emissions analysis.
+    Uses regional grid emission factors for accurate calculations.
+    """
+    prop = property_store.get_by_id(property_id)
+    
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    # Get user's closed floors
+    user_state = await user_state_service.get_user_state(user.user_id, property_id)
+    closed_floors = user_state.get("closed_floors", []) if user_state else []
+    
+    # Calculate energy usage
+    digital_twin = prop.get("digital_twin", {})
+    daily_data = digital_twin.get("daily_history", [])
+    recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+    
+    daily_energy = prop["baseline_energy_intensity"] * recent_occupancy * prop["floors"]
+    
+    # Get carbon analysis
+    carbon_data = calculate_adjusted_carbon(prop, daily_energy, closed_floors)
+    
+    return {
+        "property_id": property_id,
+        "property_name": prop["name"],
+        **carbon_data
+    }
+
+
+@api_router.get("/analytics/dashboard-with-ai")
+async def get_dashboard_with_ai_analytics(user: User = Depends(get_current_user)):
+    """
+    Enhanced dashboard with AI risk analysis for each property.
+    Includes location-specific metrics and active optimization status.
+    """
+    properties = property_store.get_all()
+    
+    total_revenue = 0
+    total_energy_cost = 0
+    total_maintenance = 0
+    total_profit = 0
+    total_capacity = 0
+    total_occupied = 0
+    total_carbon = 0
+    
+    property_metrics = []
+    active_optimizations = []
+    
+    for prop in properties:
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        
+        # Get user's state for this property
+        user_state = await user_state_service.get_user_state(user.user_id, prop["property_id"])
+        closed_floors = user_state.get("closed_floors", []) if user_state else []
+        
+        # Adjust occupancy based on closed floors
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        
+        active_floors = prop["floors"] - len(closed_floors)
+        if len(closed_floors) > 0 and active_floors > 0:
+            # Redistribute occupancy to remaining floors
+            adjusted_occupancy = min(1.0, recent_occupancy * prop["floors"] / active_floors)
+        else:
+            adjusted_occupancy = recent_occupancy
+        
+        financials = IntelligenceEngine.calculate_financials(prop, recent_occupancy)
+        
+        # Adjust financials for closed floors
+        if closed_floors:
+            floor_ratio = active_floors / prop["floors"]
+            financials["revenue"] *= floor_ratio
+            financials["energy_cost"] *= floor_ratio
+            financials["maintenance_cost"] *= floor_ratio
+            financials["profit"] = financials["revenue"] - financials["energy_cost"] - financials["maintenance_cost"]
+            financials["occupied_seats"] = int(financials["occupied_seats"] * floor_ratio)
+            financials["total_capacity"] = int(financials["total_capacity"] * floor_ratio)
+        
+        total_revenue += financials["revenue"]
+        total_energy_cost += financials["energy_cost"]
+        total_maintenance += financials["maintenance_cost"]
+        total_profit += financials["profit"]
+        total_capacity += financials["total_capacity"]
+        total_occupied += financials["occupied_seats"]
+        
+        # Calculate carbon with location-specific factor
+        carbon_factor = get_carbon_factor(prop["location"])
+        carbon = prop["baseline_energy_intensity"] * adjusted_occupancy * active_floors * carbon_factor * 30
+        total_carbon += carbon
+        
+        # Get risk data
+        loc_data = get_location_risks(prop["location"])
+        risk_scores = [r['score'] for r in loc_data['risks'].values()]
+        avg_risk = sum(risk_scores) / len(risk_scores) if risk_scores else 0.5
+        
+        # Track active optimizations
+        if closed_floors:
+            savings_estimate = len(closed_floors) * 15000  # ~15k per floor/month
+            active_optimizations.append({
+                "property_id": prop["property_id"],
+                "property_name": prop["name"],
+                "closed_floors": closed_floors,
+                "estimated_savings": savings_estimate,
+                "efficiency_gain": len(closed_floors) * 5  # ~5% per floor
+            })
+        
+        property_metrics.append({
+            "property_id": prop["property_id"],
+            "name": prop["name"],
+            "location": prop["location"],
+            "occupancy": round(adjusted_occupancy, 3),
+            "efficiency": round(65 + adjusted_occupancy * 25 + len(closed_floors) * 5, 1),
+            "profit": financials["profit"],
+            "energy_cost": financials["energy_cost"],
+            "carbon_kg": round(carbon, 2),
+            "carbon_factor": carbon_factor,
+            "utilization": IntelligenceEngine.classify_utilization(adjusted_occupancy),
+            "risk_score": round(avg_risk * 100),
+            "risk_level": "HIGH" if avg_risk > 0.65 else "MEDIUM" if avg_risk > 0.45 else "LOW",
+            "top_risks": [{"name": k.replace('_', ' ').title(), "level": v['level']} 
+                        for k, v in sorted(loc_data['risks'].items(), key=lambda x: x[1]['score'], reverse=True)[:3]],
+            "closed_floors": closed_floors,
+            "active_floors": active_floors,
+            "total_floors": prop["floors"]
+        })
+    
+    overall_occupancy = total_occupied / total_capacity if total_capacity > 0 else 0
+    
+    potential_energy_savings = total_energy_cost * 0.15
+    potential_carbon_reduction = total_carbon * 0.15
+    
+    # Calculate total realized savings from active optimizations
+    total_realized_savings = sum(opt["estimated_savings"] for opt in active_optimizations)
+    
+    return {
+        "kpis": {
+            "total_revenue": round(total_revenue, 2),
+            "total_energy_cost": round(total_energy_cost, 2),
+            "total_maintenance_cost": round(total_maintenance, 2),
+            "total_profit": round(total_profit, 2),
+            "overall_occupancy": round(overall_occupancy, 3),
+            "total_capacity": total_capacity,
+            "total_occupied": total_occupied,
+            "property_count": len(properties),
+            "total_carbon_kg": round(total_carbon, 2),
+        },
+        "optimization_potential": {
+            "potential_monthly_savings": round(potential_energy_savings, 2),
+            "potential_carbon_reduction_kg": round(potential_carbon_reduction, 2),
+            "optimization_confidence": 0.85,
+        },
+        "active_optimizations": {
+            "count": len(active_optimizations),
+            "total_closed_floors": sum(len(opt["closed_floors"]) for opt in active_optimizations),
+            "realized_monthly_savings": total_realized_savings,
+            "details": active_optimizations
+        },
+        "property_metrics": property_metrics,
+    }
+
+
 # ==================== RECOMMENDATIONS ROUTES ====================
 
 @api_router.get("/recommendations/{property_id}")
