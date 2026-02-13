@@ -328,6 +328,59 @@ class IntelligenceEngine:
         }
     
     @staticmethod
+    def calculate_redistribution_efficiency(prop: Dict, floors_to_close: List[int]) -> Dict:
+        """
+        Calculate efficiency metrics when redistributing occupants from closed floors.
+        Used by change logging and WhatsApp commands.
+        """
+        total_floors = prop.get("floors", 8)
+        active_floors = total_floors - len(floors_to_close)
+        
+        if active_floors <= 0:
+            return {
+                "efficiency": 0,
+                "new_avg_occupancy": 0,
+                "risk_level": "critical",
+                "redistribution_possible": False
+            }
+        
+        # Calculate redistribution
+        digital_twin = prop.get("digital_twin", {})
+        daily_data = digital_twin.get("daily_history", [])
+        recent_occupancy = sum(d["occupancy_rate"] for d in daily_data[-7:]) / 7 if daily_data else 0.6
+        
+        # When closing floors, occupants must redistribute to remaining floors
+        # New avg occupancy = current occupancy * total floors / active floors
+        new_avg_occupancy = recent_occupancy * total_floors / active_floors
+        
+        # Calculate efficiency (0-1 scale)
+        if new_avg_occupancy <= 0.85:
+            efficiency = 0.95  # Excellent - room to grow
+        elif new_avg_occupancy <= 0.92:
+            efficiency = 0.80  # Good - approaching capacity
+        elif new_avg_occupancy <= 0.98:
+            efficiency = 0.65  # Moderate - near max
+        else:
+            efficiency = 0.40  # Poor - overcrowded
+        
+        # Determine risk level
+        if new_avg_occupancy > 0.95:
+            risk_level = "high"
+        elif new_avg_occupancy > 0.85:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+        
+        return {
+            "efficiency": efficiency,
+            "new_avg_occupancy": round(new_avg_occupancy, 3),
+            "risk_level": risk_level,
+            "redistribution_possible": new_avg_occupancy < 1.0,
+            "floors_closed": len(floors_to_close),
+            "active_floors": active_floors
+        }
+    
+    @staticmethod
     def simulate_floor_closure(prop: Dict, floors_to_close: List[int], 
                                 hybrid_intensity: float = 1.0, 
                                 target_occupancy: float = None) -> Dict:
