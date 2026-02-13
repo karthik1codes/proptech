@@ -4,7 +4,7 @@ import axios from 'axios';
 import { 
   Building2, TrendingUp, Zap, DollarSign, Users, 
   ArrowUpRight, ArrowDownRight, Leaf,
-  BarChart3, ChevronRight, Sparkles
+  BarChart3, ChevronRight, Sparkles, Lock, Activity
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -14,6 +14,7 @@ import { API, AuthContext } from '../App';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters';
 import AnimatedCounter from '../components/AnimatedCounter';
 import WhatsAppLinking from '../components/WhatsAppLinking';
+import { usePropertyState } from '../context/PropertyStateContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
@@ -21,20 +22,24 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
-  const [properties, setProperties] = useState([]);
+  
+  // Use global state context
+  const { 
+    properties, 
+    userStates, 
+    getClosedFloors,
+    lastUpdate,
+    loading: stateLoading 
+  } = usePropertyState();
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [lastUpdate]); // Refetch when global state changes
 
   const fetchDashboardData = async () => {
     try {
-      const [dashboardRes, propertiesRes] = await Promise.all([
-        axios.get(`${API}/analytics/dashboard`, { withCredentials: true }),
-        axios.get(`${API}/properties`, { withCredentials: true })
-      ]);
-      setDashboardData(dashboardRes.data);
-      setProperties(propertiesRes.data);
+      const response = await axios.get(`${API}/analytics/dashboard`, { withCredentials: true });
+      setDashboardData(response.data);
     } catch (error) {
       console.error('Error fetching dashboard:', error);
     } finally {
@@ -42,7 +47,19 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) {
+  // Calculate total active optimizations
+  const activeOptimizations = Object.values(userStates).filter(
+    state => state.closed_floors && state.closed_floors.length > 0
+  );
+  
+  // Calculate total projected savings from active optimizations
+  const totalProjectedSavings = activeOptimizations.reduce((total, state) => {
+    const closedCount = state.closed_floors?.length || 0;
+    // Rough estimate: ~15000 per floor/month savings
+    return total + (closedCount * 15000);
+  }, 0);
+
+  if (loading || stateLoading) {
     return (
       <div className="space-y-8" data-testid="dashboard-loading">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -108,6 +125,35 @@ export default function Dashboard() {
           View All Properties
         </Button>
       </div>
+
+      {/* Active Optimizations Banner */}
+      {activeOptimizations.length > 0 && (
+        <Card className="glass border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 animate-fade-in" data-testid="active-optimizations-banner">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-emerald-400">
+                    {activeOptimizations.length} Active Optimization{activeOptimizations.length > 1 ? 's' : ''}
+                  </p>
+                  <p className="text-sm text-slate-400">
+                    {Object.values(userStates).reduce((total, state) => total + (state.closed_floors?.length || 0), 0)} floor(s) closed across properties
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-500 uppercase">Est. Monthly Savings</p>
+                <p className="text-xl font-bold font-mono text-emerald-400">
+                  {formatCurrency(totalProjectedSavings)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -298,42 +344,58 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {properties.slice(0, 3).map((prop, idx) => (
-              <div 
-                key={prop.property_id}
-                className="flex items-center justify-between p-5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-cyan-500/20 cursor-pointer transition-all group"
-                onClick={() => navigate(`/property/${prop.property_id}`)}
-                data-testid={`property-card-${prop.property_id}`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center text-lg font-bold text-cyan-400 border border-cyan-500/20 group-hover:border-cyan-500/40 transition-colors">
-                    {idx + 1}
+            {properties.slice(0, 3).map((prop, idx) => {
+              const closedFloors = getClosedFloors(prop.property_id);
+              const hasOptimization = closedFloors.length > 0;
+              
+              return (
+                <div 
+                  key={prop.property_id}
+                  className="flex items-center justify-between p-5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-cyan-500/20 cursor-pointer transition-all group"
+                  onClick={() => navigate(`/property/${prop.property_id}`)}
+                  data-testid={`property-card-${prop.property_id}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center text-lg font-bold text-cyan-400 border border-cyan-500/20 group-hover:border-cyan-500/40 transition-colors relative">
+                      {idx + 1}
+                      {hasOptimization && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-zinc-900" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white group-hover:text-cyan-400 transition-colors flex items-center gap-2">
+                        {prop.name}
+                        {hasOptimization && (
+                          <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs">
+                            <Lock className="w-3 h-3 mr-1" />
+                            {closedFloors.length} closed
+                          </Badge>
+                        )}
+                      </h4>
+                      <p className="text-sm text-slate-500">{prop.location}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-white group-hover:text-cyan-400 transition-colors">{prop.name}</h4>
-                    <p className="text-sm text-slate-500">{prop.location}</p>
+                  <div className="flex items-center gap-8">
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider">Occupancy</p>
+                      <p className={`font-mono font-semibold ${getUtilizationColor(prop.utilization_status)}`}>
+                        {formatPercent(prop.current_occupancy)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider">Profit</p>
+                      <p className="font-mono font-semibold text-emerald-400">
+                        {formatCurrency(prop.current_profit)}
+                      </p>
+                    </div>
+                    <Badge className={`${getUtilizationBadge(prop.utilization_status)} border`}>
+                      {prop.utilization_status}
+                    </Badge>
+                    <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
                   </div>
                 </div>
-                <div className="flex items-center gap-8">
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500 uppercase tracking-wider">Occupancy</p>
-                    <p className={`font-mono font-semibold ${getUtilizationColor(prop.utilization_status)}`}>
-                      {formatPercent(prop.current_occupancy)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500 uppercase tracking-wider">Profit</p>
-                    <p className="font-mono font-semibold text-emerald-400">
-                      {formatCurrency(prop.current_profit)}
-                    </p>
-                  </div>
-                  <Badge className={`${getUtilizationBadge(prop.utilization_status)} border`}>
-                    {prop.utilization_status}
-                  </Badge>
-                  <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
