@@ -166,6 +166,11 @@ TWILIO_WHATSAPP_NUMBER=<number>
 
 ## Changelog
 
+### v1.4.1 (2026-02-13) - Minor Fixes
+- Fixed PDF download filename (PropTech → Infranomic)
+- Fixed table hydration warning in ExecutiveSummary
+- Documented WhatsApp webhook URL
+
 ### v1.4.0 (2026-02-13) - Major Upgrade
 - Rebranded app from PropTech to Infranomic
 - Added AI-powered risk analysis with OpenAI GPT
