@@ -168,7 +168,7 @@ export default function LoginPage() {
 
           {/* Footer */}
           <p className="text-center text-xs text-slate-600">
-            © 2026 PropTech Decision Copilot. All rights reserved.
+            © 2026 Infranomic Decision Copilot. All rights reserved.
           </p>
         </div>
       </div>
