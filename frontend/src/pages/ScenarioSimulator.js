@@ -119,7 +119,21 @@ export default function ScenarioSimulator() {
       }, { withCredentials: true });
       
       setSimulation(response.data);
-      toast.success('Simulation complete');
+      
+      // Check if current selection differs from saved state
+      const savedFloors = getClosedFloors(selectedProperty.property_id);
+      const currentSet = new Set(floorsToClose);
+      const savedSet = new Set(savedFloors);
+      const isDifferent = floorsToClose.length !== savedFloors.length || 
+                         !floorsToClose.every(f => savedSet.has(f));
+      
+      setHasUnsavedChanges(isDifferent);
+      
+      if (isDifferent) {
+        toast.success('Simulation complete! Click "Apply Changes Globally" to save.');
+      } else {
+        toast.success('Simulation complete - matches current saved state.');
+      }
     } catch (error) {
       console.error('Error running simulation:', error);
       toast.error('Failed to run simulation');
