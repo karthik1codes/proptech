@@ -38,9 +38,13 @@ class ChangeLogService:
             await self.collection.create_index([("user_id", 1), ("timestamp", -1)])
             await self.collection.create_index([("user_id", 1), ("entity_type", 1), ("entity_id", 1)])
             
-            # Session indexes
+            # Session indexes - handle existing null values
             await self.sessions.create_index("user_id")
-            await self.sessions.create_index("session_id", unique=True)
+            try:
+                await self.sessions.create_index("session_id", unique=True, sparse=True)
+            except Exception:
+                # Index may already exist with different options
+                pass
             await self.sessions.create_index([("user_id", 1), ("started_at", -1)])
             
             logger.info("Change log indexes created")
