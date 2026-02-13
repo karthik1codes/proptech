@@ -38,7 +38,7 @@ export default function LoginPage() {
               <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-slate-900 animate-pulse"></div>
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">PropTech</h1>
+              <h1 className="text-3xl font-bold text-white tracking-tight">Infranomic</h1>
               <p className="text-cyan-400 font-medium">Decision Copilot</p>
             </div>
           </div>
