@@ -34,14 +34,17 @@ export default function Dashboard() {
   } = usePropertyState();
 
   useEffect(() => {
+    console.log('[Dashboard] lastUpdate changed:', lastUpdate);
     fetchDashboardData();
   }, [lastUpdate]); // Refetch when global state changes
 
   const fetchDashboardData = async () => {
+    console.log('[Dashboard] Fetching dashboard data...');
     try {
       // Use the enhanced AI dashboard endpoint
       const response = await axios.get(`${API}/analytics/dashboard-with-ai`, { withCredentials: true });
       setDashboardData(response.data);
+      console.log('[Dashboard] Data fetched. Active optimizations:', response.data?.active_optimizations?.count || 0);
     } catch (error) {
       console.error('Error fetching dashboard:', error);
       // Fallback to regular dashboard
