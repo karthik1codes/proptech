@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { MessageCircle, Phone, Check, X, Loader2, Send, Shield } from 'lucide-react';
+import { MessageCircle, Phone, Check, X, Loader2, Send, Shield, Copy, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -13,6 +13,9 @@ import {
   InputOTPSlot,
 } from "./ui/input-otp";
 
+// Twilio Sandbox Number from env
+const TWILIO_WHATSAPP_NUMBER = "+14155238886";
+
 export default function WhatsAppLinking() {
   const [linkingStatus, setLinkingStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,6 +24,7 @@ export default function WhatsAppLinking() {
   const [step, setStep] = useState('check'); // check, enter_phone, verify_otp, linked
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [showAllCommands, setShowAllCommands] = useState(false);
 
   useEffect(() => {
     checkLinkingStatus();
