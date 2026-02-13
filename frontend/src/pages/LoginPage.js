@@ -106,7 +106,7 @@ export default function LoginPage() {
               <Building2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">PropTech</h1>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Infranomic</h1>
               <p className="text-sm text-cyan-400 font-medium">Decision Copilot</p>
             </div>
           </div>
