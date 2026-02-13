@@ -76,21 +76,29 @@ class UserPropertyStateService:
         self,
         user_id: str,
         property_id: str,
-        closed_floors: List[int]
+        closed_floors: List[int],
+        session_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Set closed floors for a user's property state.
         Creates new state if doesn't exist, updates if exists.
+        Logs change to user_change_log.
         """
         try:
             now = datetime.now(timezone.utc)
+            
+            # Get current state for change logging
+            old_state = await self.get_user_state(user_id, property_id)
+            old_closed_floors = old_state.get("closed_floors", []) if old_state else []
             
             await self.collection.update_one(
                 {"user_id": user_id, "property_id": property_id},
                 {
                     "$set": {
                         "closed_floors": closed_floors,
-                        "updated_at": now
+                        "updated_at": now,
+                        "last_session_id": session_id
                     },
                     "$setOnInsert": {
                         "user_id": user_id,
@@ -104,13 +112,27 @@ class UserPropertyStateService:
                 upsert=True
             )
             
+            # Log the change
+            if _change_log_service and old_closed_floors != closed_floors:
+                await _change_log_service.log_change(
+                    user_id=user_id,
+                    entity_type="property_state",
+                    entity_id=property_id,
+                    field="closed_floors",
+                    old_value=old_closed_floors,
+                    new_value=closed_floors,
+                    session_id=session_id,
+                    metadata=metadata
+                )
+            
             logger.info(f"User {user_id} set closed floors {closed_floors} for {property_id}")
             
             return {
                 "success": True,
                 "user_id": user_id,
                 "property_id": property_id,
-                "closed_floors": closed_floors
+                "closed_floors": closed_floors,
+                "previous_closed_floors": old_closed_floors
             }
             
         except Exception as e:
