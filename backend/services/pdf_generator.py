@@ -12,10 +12,39 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 logger = logging.getLogger(__name__)
+
+# Location risk data
+LOCATION_RISK_DATA = {
+    "bangalore": {
+        "city": "Bangalore",
+        "risks": ["Water Scarcity", "Traffic Congestion", "IT Sector Dependency"],
+        "grid_factor": 0.82
+    },
+    "mumbai": {
+        "city": "Mumbai", 
+        "risks": ["Flooding", "Coastal Erosion", "High Real Estate Costs"],
+        "grid_factor": 0.79
+    },
+    "hyderabad": {
+        "city": "Hyderabad",
+        "risks": ["Drought", "Rapid Urbanization", "Water Scarcity"],
+        "grid_factor": 0.82
+    }
+}
+
+def get_location_key(location: str) -> str:
+    location_lower = location.lower()
+    if "bangalore" in location_lower or "bengaluru" in location_lower:
+        return "bangalore"
+    elif "mumbai" in location_lower:
+        return "mumbai"
+    elif "hyderabad" in location_lower:
+        return "hyderabad"
+    return "bangalore"
 
 
 class PDFReportGenerator:
