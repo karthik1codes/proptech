@@ -2344,14 +2344,21 @@ async def open_floors(
     request: CloseFloorsRequest,
     user: User = Depends(get_current_user)
 ):
-    """Open (re-enable) specific floors for a property (user-scoped)."""
-    result = await user_state_service.open_floors(user.user_id, property_id, request.floors)
+    """Open (re-enable) specific floors for a property (user-scoped). Logged to change history."""
+    prop = property_store.get_by_id(property_id)
+    
+    result = await user_state_service.open_floors(
+        user.user_id, 
+        property_id, 
+        request.floors,
+        session_id=request.session_id,
+        metadata={"source": "api", "property_name": prop.get("name") if prop else None}
+    )
     
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to open floors"))
     
     # Get updated analytics
-    prop = property_store.get_by_id(property_id)
     state = await user_state_service.get_user_state(user.user_id, property_id)
     analytics = await _get_property_analytics_with_override(prop, state) if prop else {}
     
@@ -2361,20 +2368,30 @@ async def open_floors(
     }
 
 
+class ResetRequest(BaseModel):
+    session_id: Optional[str] = None
+
+
 @api_router.post("/user-state/{property_id}/reset")
 async def reset_property_state(
     property_id: str,
+    request: Optional[ResetRequest] = None,
     user: User = Depends(get_current_user)
 ):
-    """Reset user's property state to default (remove all overrides)."""
-    result = await user_state_service.reset_property_state(user.user_id, property_id)
+    """Reset user's property state to default (remove all overrides). Logged to change history."""
+    session_id = request.session_id if request else None
+    result = await user_state_service.reset_property_state(user.user_id, property_id, session_id=session_id)
     return result
 
 
 @api_router.post("/user-state/reset-all")
-async def reset_all_user_states(user: User = Depends(get_current_user)):
-    """Reset all property states for current user."""
-    result = await user_state_service.reset_all_user_states(user.user_id)
+async def reset_all_user_states(
+    request: Optional[ResetRequest] = None,
+    user: User = Depends(get_current_user)
+):
+    """Reset all property states for current user. Logged to change history."""
+    session_id = request.session_id if request else None
+    result = await user_state_service.reset_all_user_states(user.user_id, session_id=session_id)
     return result
 
 
