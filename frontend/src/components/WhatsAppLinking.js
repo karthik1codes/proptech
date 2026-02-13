@@ -275,34 +275,159 @@ export default function WhatsAppLinking() {
                 </div>
               </div>
 
-              <div className="space-y-2 text-sm">
-                <p className="text-slate-300 font-medium mb-2">Available Commands:</p>
+              <div className="space-y-3 text-sm">
+                <p className="text-slate-300 font-medium">Quick Commands:</p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="p-2 rounded bg-white/5 text-slate-400">
-                    <span className="text-cyan-400">Close F3 in Horizon</span>
+                    <span className="text-cyan-400">list</span> - All properties
                   </div>
                   <div className="p-2 rounded bg-white/5 text-slate-400">
-                    <span className="text-cyan-400">Simulate closing F2</span>
+                    <span className="text-cyan-400">Horizon</span> - Property details
                   </div>
                   <div className="p-2 rounded bg-white/5 text-slate-400">
-                    <span className="text-cyan-400">Show dashboard</span>
+                    <span className="text-cyan-400">close F3 in Horizon</span>
                   </div>
                   <div className="p-2 rounded bg-white/5 text-slate-400">
-                    <span className="text-cyan-400">Energy report</span>
+                    <span className="text-cyan-400">simulate closing F2</span>
                   </div>
                 </div>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAllCommands(!showAllCommands)}
+                  className="w-full text-cyan-400 hover:text-cyan-300 hover:bg-white/5"
+                >
+                  {showAllCommands ? (
+                    <>
+                      <ChevronUp className="w-4 h-4 mr-2" />
+                      Hide All Commands
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4 mr-2" />
+                      Show All Commands
+                    </>
+                  )}
+                </Button>
+
+                {showAllCommands && (
+                  <div className="space-y-3 pt-2 border-t border-white/10">
+                    {/* Property Analytics */}
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase mb-2">Property Analytics</p>
+                      <div className="grid grid-cols-1 gap-1 text-xs">
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">list</span> - Show all properties
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">overview</span> - Portfolio summary
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">portfolio</span> - All properties benchmarks
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Floor Control */}
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase mb-2">Floor Control</p>
+                      <div className="grid grid-cols-1 gap-1 text-xs">
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">close floor 7 in Horizon</span>
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">close floors 2,4,5</span>
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">open floor 3</span>
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">reset Horizon</span> / <span className="text-cyan-400">reset all</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Simulation */}
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase mb-2">Simulation</p>
+                      <div className="grid grid-cols-1 gap-1 text-xs">
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">simulate closing F3</span>
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">what if we close floor 2?</span>
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">run optimization</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Reports & AI */}
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase mb-2">Reports & AI</p>
+                      <div className="grid grid-cols-1 gap-1 text-xs">
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">download PDF</span> - Executive report
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">energy report</span>
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">recommend</span> / <span className="text-cyan-400">tips</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Alerts */}
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase mb-2">Alerts</p>
+                      <div className="grid grid-cols-1 gap-1 text-xs">
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">alerts</span> - View active alerts
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">subscribe</span> / <span className="text-cyan-400">unsubscribe</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* System */}
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase mb-2">System</p>
+                      <div className="grid grid-cols-1 gap-1 text-xs">
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">help</span> - Show all commands
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">status</span> - System status
+                        </div>
+                        <div className="p-2 rounded bg-white/5 text-slate-400">
+                          <span className="text-cyan-400">undo</span> - Revert last change
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex gap-2">
               <Button
+                onClick={openWhatsApp}
+                className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open WhatsApp
+              </Button>
+              <Button
                 variant="outline"
                 onClick={unlinkPhone}
-                className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                className="border-red-500/30 text-red-400 hover:bg-red-500/10"
                 data-testid="unlink-btn"
               >
-                <X className="w-4 h-4 mr-2" />
-                Unlink WhatsApp
+                <X className="w-4 h-4" />
               </Button>
             </div>
           </>
