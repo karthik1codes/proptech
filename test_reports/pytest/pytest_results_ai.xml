@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="19" time="92.011" timestamp="2026-02-13T02:15:48.839415+00:00" hostname="agent-env-ab71b415-7b91-41ff-90e3-f6c462f5d34c"><testcase classname="backend.tests.test_ai_features.TestHealthAndBasics" name="test_health_endpoint" time="0.887" /><testcase classname="backend.tests.test_ai_features.TestHealthAndBasics" name="test_unauthorized_without_auth" time="1.500" /><testcase classname="backend.tests.test_ai_features.TestEnhancedDashboardAPI" name="test_dashboard_with_ai_returns_200" time="0.853" /><testcase classname="backend.tests.test_ai_features.TestEnhancedDashboardAPI" name="test_dashboard_contains_kpis" time="0.857" /><testcase classname="backend.tests.test_ai_features.TestEnhancedDashboardAPI" name="test_dashboard_contains_property_metrics_with_risk" time="0.642" /><testcase classname="backend.tests.test_ai_features.TestEnhancedDashboardAPI" name="test_dashboard_carbon_factors_are_location_specific" time="0.638" /><testcase classname="backend.tests.test_ai_features.TestEnhancedDashboardAPI" name="test_dashboard_active_optimizations_includes_property_names" time="0.877" /><testcase classname="backend.tests.test_ai_features.TestAIRecommendationsAPI" name="test_ai_recommendations_returns_200" time="14.543" /><testcase classname="backend.tests.test_ai_features.TestAIRecommendationsAPI" name="test_ai_recommendations_returns_5_to_6_items" time="10.184" /><testcase classname="backend.tests.test_ai_features.TestAIRecommendationsAPI" name="test_ai_recommendations_structure" time="9.564" /><testcase classname="backend.tests.test_ai_features.TestAIRecommendationsAPI" name="test_ai_recommendations_invalid_property" time="0.667" /><testcase classname="backend.tests.test_ai_features.TestAIRiskAnalysisAPI" name="test_ai_risk_analysis_returns_200" time="8.254" /><testcase classname="backend.tests.test_ai_features.TestAIRiskAnalysisAPI" name="test_ai_risk_analysis_contains_required_fields" time="8.842" /><testcase classname="backend.tests.test_ai_features.TestAIRiskAnalysisAPI" name="test_ai_risk_analysis_risk_levels_are_valid" time="27.726" /><testcase classname="backend.tests.test_ai_features.TestAICarbonAnalysisAPI" name="test_carbon_analysis_returns_200" time="0.887" /><testcase classname="backend.tests.test_ai_features.TestAICarbonAnalysisAPI" name="test_carbon_analysis_contains_location_data" time="0.850" /><testcase classname="backend.tests.test_ai_features.TestAICarbonAnalysisAPI" name="test_carbon_analysis_different_locations" time="2.567" /><testcase classname="backend.tests.test_ai_features.TestPDFReportEndpoint" name="test_executive_summary_pdf_returns_200" time="0.896" /><testcase classname="backend.tests.test_ai_features.TestBrandingInResponse" name="test_server_title" time="0.665"><failure message="requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)">/root/.venv/lib/python3.11/site-packages/requests/models.py:976: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_ai_features.py:345: in test_server_title
+    data = response.json()
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:980: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</failure></testcase></testsuite></testsuites>
