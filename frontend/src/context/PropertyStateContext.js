@@ -115,7 +115,10 @@ export function PropertyStateProvider({ children }) {
       );
       
       if (response.data.success) {
-        setLastUpdate(new Date().toISOString());
+        // Update timestamp to trigger dashboard refresh
+        const timestamp = new Date().toISOString();
+        setLastUpdate(timestamp);
+        
         // Update with server response
         setUserStates(prev => ({
           ...prev,
@@ -125,9 +128,13 @@ export function PropertyStateProvider({ children }) {
             analytics: response.data.analytics
           }
         }));
+        
+        console.log(`[PropertyState] Floors closed: ${floors.join(', ')} for ${propertyId}. Last update: ${timestamp}`);
         return { success: true, analytics: response.data.analytics };
       }
+      return { success: false, error: 'Server returned unsuccessful response' };
     } catch (err) {
+      console.error('[PropertyState] Close floors error:', err);
       // Rollback on error
       setUserStates(prev => ({
         ...prev,
