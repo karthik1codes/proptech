@@ -1,8 +1,54 @@
 # PropTech Decision Copilot - Product Requirements Document
 
-## Latest Update: February 12, 2026
+## Latest Update: February 13, 2026
 
-### MAJOR UPGRADE: Fully Conversational Multi-User PropTech Copilot
+### NEW: Complete Change Logging & Auto-Save System
+
+Full audit trail with session tracking and frontend auto-save.
+
+---
+
+## Change Logging System (`backend/services/change_log_service.py`)
+
+**MongoDB Collections:**
+- `user_change_log` - Full audit trail
+- `user_sessions` - Session tracking
+
+**Schema - user_change_log:**
+```json
+{
+  "change_id": "uuid",
+  "user_id": "string",
+  "entity_type": "property_state|simulation|alert",
+  "entity_id": "prop_001",
+  "field": "closed_floors",
+  "old_value": [1, 2],
+  "new_value": [1, 2, 3],
+  "timestamp": "datetime",
+  "session_id": "session_abc123",
+  "metadata": {"source": "api", "property_name": "Horizon"}
+}
+```
+
+**API Endpoints:**
+- `POST /api/sessions/create` - Create tracking session
+- `GET /api/sessions` - List user sessions
+- `GET /api/sessions/{session_id}` - Session details with changes
+- `POST /api/sessions/{session_id}/end` - End session
+- `GET /api/change-log` - Get user changes (filters: entity_type, entity_id, session_id)
+- `GET /api/change-log/entity/{type}/{id}` - Entity history
+- `GET /api/change-log/stats` - Change statistics
+
+**Frontend Auto-Save Hook (`frontend/src/hooks/useAutoSave.js`):**
+- 500ms debounce on changes
+- Optimistic updates
+- Session creation on mount
+- Session cleanup on unmount
+- Methods: `closeFloor`, `openFloor`, `toggleFloor`, `reset`, `saveNow`
+
+---
+
+### PREVIOUS: Fully Conversational Multi-User PropTech Copilot
 
 Every website action is now executable via WhatsApp with strict multi-user isolation.
 
