@@ -609,6 +609,73 @@ class PDFReportGenerator:
         ]))
         story.append(savings_table)
         
+        # ==================== RISK ANALYSIS SECTION ====================
+        story.append(PageBreak())
+        story.append(Paragraph("⚠️ Location Risk Analysis", self.styles['SectionHeader']))
+        
+        risk_data = [["Property", "Location", "Risk Level", "Top Risks", "Carbon Factor"]]
+        
+        for prop in properties:
+            location = prop.get("location", "")
+            loc_key = get_location_key(location)
+            loc_data = LOCATION_RISK_DATA.get(loc_key, LOCATION_RISK_DATA["bangalore"])
+            
+            # Calculate risk level based on location
+            risk_levels = {
+                "bangalore": "MEDIUM",
+                "mumbai": "HIGH", 
+                "hyderabad": "MEDIUM"
+            }
+            risk_level = risk_levels.get(loc_key, "MEDIUM")
+            
+            risk_data.append([
+                prop.get("name", "")[:20],
+                loc_data.get("city", "Unknown"),
+                risk_level,
+                ", ".join(loc_data.get("risks", [])[:2]),
+                f"{loc_data.get('grid_factor', 0.82)} kg/kWh"
+            ])
+        
+        risk_table = Table(risk_data, colWidths=[1.4*inch, 1*inch, 0.9*inch, 2.2*inch, 1*inch])
+        risk_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#dc2626")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+            ('ALIGN', (4, 0), (4, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#fef2f2")]),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(risk_table)
+        
+        story.append(Spacer(1, 15))
+        
+        # Risk Mitigation Recommendations
+        story.append(Paragraph("🛡️ Risk Mitigation Recommendations", ParagraphStyle(
+            name='RiskMitigation',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor("#1e40af"),
+            fontName='Helvetica-Bold',
+            spaceBefore=10,
+            spaceAfter=10
+        )))
+        
+        mitigation_items = [
+            "Implement flood-resistant infrastructure for coastal properties (Mumbai)",
+            "Invest in water harvesting systems for drought-prone areas (Bangalore, Hyderabad)",
+            "Develop business continuity plans for high-risk locations",
+            "Install solar panels to reduce grid dependency and carbon footprint",
+            "Regular risk assessments and insurance coverage updates"
+        ]
+        
+        for item in mitigation_items:
+            story.append(Paragraph(f"• {item}", self.styles['Normal']))
+            story.append(Spacer(1, 3))
+        
         # ==================== FOOTER ====================
         story.append(Spacer(1, 30))
         
