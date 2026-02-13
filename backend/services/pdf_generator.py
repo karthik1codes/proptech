@@ -330,7 +330,7 @@ class PDFReportGenerator:
             alignment=TA_CENTER,
             spaceAfter=20
         )
-        story.append(Paragraph("PropTech Decision Copilot - Portfolio Analysis", subtitle_style))
+        story.append(Paragraph("Infranomic Decision Copilot - Portfolio Analysis", subtitle_style))
         
         # Report date
         date_style = ParagraphStyle(
