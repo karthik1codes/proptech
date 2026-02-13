@@ -28,9 +28,19 @@ export default function PropertyDetail() {
   const [energySavings, setEnergySavings] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Use global state context
+  const { 
+    getClosedFloors, 
+    toggleFloor,
+    lastUpdate 
+  } = usePropertyState();
+
   useEffect(() => {
     fetchPropertyData();
-  }, [propertyId]);
+  }, [propertyId, lastUpdate]); // Refetch when global state changes
+
+  const closedFloors = getClosedFloors(propertyId);
+  const hasOptimization = closedFloors.length > 0;
 
   const fetchPropertyData = async () => {
     try {
