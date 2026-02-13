@@ -137,6 +137,12 @@ export default function PropertyDetail() {
               <Badge className={getUtilizationBadge(property.utilization_status)}>
                 {property.utilization_status}
               </Badge>
+              {hasOptimization && (
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                  <Lock className="w-3 h-3 mr-1" />
+                  {closedFloors.length} floor(s) closed
+                </Badge>
+              )}
             </div>
             <p className="text-muted-foreground mt-1">{property.location} • {property.type}</p>
           </div>
