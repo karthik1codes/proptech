@@ -111,6 +111,15 @@ export default function WhatsAppLinking() {
     }
   };
 
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard!');
+  };
+
+  const openWhatsApp = () => {
+    window.open(`https://wa.me/${TWILIO_WHATSAPP_NUMBER.replace('+', '')}`, '_blank');
+  };
+
   if (loading) {
     return (
       <Card className="glass border-white/5">
