@@ -3024,12 +3024,20 @@ _alert_scheduler = None
 _whatsapp_linking_service = None
 _command_parser = None
 _pdf_generator = None
+_change_log_service = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
-    global _alert_scheduler, _whatsapp_linking_service, _command_parser, _pdf_generator
+    global _alert_scheduler, _whatsapp_linking_service, _command_parser, _pdf_generator, _change_log_service
+    
+    # Initialize change log service FIRST (other services depend on it)
+    _change_log_service = init_change_log_service(db)
+    await _change_log_service.ensure_indexes()
+    
+    # Link change log service to user state service
+    set_change_log_service(_change_log_service)
     
     # Create indexes for user state service
     await user_state_service.ensure_indexes()
@@ -3063,7 +3071,7 @@ async def startup_event():
     # Start the scheduled alert checker (runs in background)
     _alert_scheduler.start()
     
-    logger.info("PropTech Decision Copilot started - All services active")
+    logger.info("PropTech Decision Copilot started - All services active (with change logging)")
 
 
 @app.on_event("shutdown")
