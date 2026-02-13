@@ -46,7 +46,7 @@ conversation_history = ConversationHistory(db)
 user_state_service = init_user_state_service(db)
 
 # Create the main app
-app = FastAPI(title="PropTech Decision Copilot API")
+app = FastAPI(title="Infranomic Decision Copilot API")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
