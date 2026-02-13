@@ -351,15 +351,26 @@ export default function PropertyDetail() {
         <TabsContent value="floorplan">
           <Card className="glass" data-testid="floorplan-tab">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-blue-400" />
-                Interactive Floor Plan
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-blue-400" />
+                  Interactive Floor Plan
+                </CardTitle>
+                {hasOptimization && (
+                  <div className="flex items-center gap-2 text-sm text-emerald-400">
+                    <Activity className="w-4 h-4" />
+                    {closedFloors.length} floor(s) optimized
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <FloorPlanVisualization 
                 floorData={property.digital_twin?.floor_data || []}
                 floors={property.floors}
+                closedFloors={closedFloors}
+                onFloorToggle={(floorNum) => toggleFloor(propertyId, floorNum)}
+                interactive={true}
               />
             </CardContent>
           </Card>
