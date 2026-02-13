@@ -26,6 +26,13 @@ from services.whatsapp_linking_service import WhatsAppLinkingService, init_whats
 from services.command_parser import CommandParser, CommandIntent, ParsedCommand, init_command_parser
 from services.pdf_generator import PDFReportGenerator, init_pdf_generator
 from services.change_log_service import ChangeLogService, init_change_log_service
+from services.ai_risk_service import (
+    ai_risk_service, 
+    get_carbon_factor, 
+    get_location_risks,
+    calculate_adjusted_carbon,
+    LOCATION_DATA
+)
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
