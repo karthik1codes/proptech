@@ -143,7 +143,9 @@ class UserPropertyStateService:
         self,
         user_id: str,
         property_id: str,
-        floors_to_open: List[int]
+        floors_to_open: List[int],
+        session_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Remove specific floors from closed floors list."""
         try:
@@ -159,7 +161,7 @@ class UserPropertyStateService:
             current_closed = state.get("closed_floors", [])
             new_closed = [f for f in current_closed if f not in floors_to_open]
             
-            return await self.set_closed_floors(user_id, property_id, new_closed)
+            return await self.set_closed_floors(user_id, property_id, new_closed, session_id, metadata)
             
         except Exception as e:
             logger.error(f"Failed to open floors: {e}")
@@ -169,7 +171,9 @@ class UserPropertyStateService:
         self,
         user_id: str,
         property_id: str,
-        floors_to_close: List[int]
+        floors_to_close: List[int],
+        session_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Add specific floors to closed floors list."""
         try:
@@ -179,7 +183,7 @@ class UserPropertyStateService:
             new_closed = list(set(current_closed + floors_to_close))
             new_closed.sort()
             
-            return await self.set_closed_floors(user_id, property_id, new_closed)
+            return await self.set_closed_floors(user_id, property_id, new_closed, session_id, metadata)
             
         except Exception as e:
             logger.error(f"Failed to close floors: {e}")
@@ -190,14 +194,22 @@ class UserPropertyStateService:
         user_id: str,
         property_id: str,
         hybrid_intensity: Optional[float] = None,
-        target_occupancy: Optional[float] = None
+        target_occupancy: Optional[float] = None,
+        session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Update simulation parameters for a user's property state."""
         try:
+            # Get current state for change logging
+            old_state = await self.get_user_state(user_id, property_id)
+            
             update_fields = {"updated_at": datetime.now(timezone.utc)}
+            changes = {}
             
             if hybrid_intensity is not None:
                 update_fields["hybrid_intensity"] = hybrid_intensity
+                old_val = old_state.get("hybrid_intensity", 1.0) if old_state else 1.0
+                if old_val != hybrid_intensity:
+                    changes["hybrid_intensity"] = (old_val, hybrid_intensity)
             if target_occupancy is not None:
                 update_fields["target_occupancy"] = target_occupancy
             
