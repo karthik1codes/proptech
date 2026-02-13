@@ -435,9 +435,29 @@ export default function WhatsAppLinking() {
 
         {/* WhatsApp number to message */}
         <div className="p-3 rounded-lg bg-slate-800/30 border border-white/5">
-          <p className="text-xs text-slate-400 text-center">
-            Send messages to: <strong className="text-green-400">+1 415 523 8886</strong>
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-400">
+              Send messages to: <strong className="text-green-400">{TWILIO_WHATSAPP_NUMBER}</strong>
+            </p>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => copyToClipboard(TWILIO_WHATSAPP_NUMBER)}
+                className="h-6 px-2 text-slate-400 hover:text-white hover:bg-white/10"
+              >
+                <Copy className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={openWhatsApp}
+                className="h-6 px-2 text-green-400 hover:text-green-300 hover:bg-white/10"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
