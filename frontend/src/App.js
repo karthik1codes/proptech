@@ -112,7 +112,9 @@ function ProtectedRoute({ children }) {
 
   return (
     <AuthContext.Provider value={{ user, setUser }}>
-      {children}
+      <PropertyStateProvider>
+        {children}
+      </PropertyStateProvider>
     </AuthContext.Provider>
   );
 }
