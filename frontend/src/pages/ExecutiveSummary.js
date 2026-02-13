@@ -402,7 +402,13 @@ export default function ExecutiveSummary() {
                       </td>
                     </tr>
                   );
-                })}
+                }) : (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                      Loading benchmark data...
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
