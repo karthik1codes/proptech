@@ -4,7 +4,8 @@ import axios from 'axios';
 import { 
   Building2, TrendingUp, Zap, DollarSign, Users, 
   ArrowUpRight, ArrowDownRight, Leaf,
-  BarChart3, ChevronRight, Sparkles, Lock, Activity
+  BarChart3, ChevronRight, Sparkles, Lock, Activity,
+  AlertTriangle, Shield, MapPin
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -38,26 +39,26 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await axios.get(`${API}/analytics/dashboard`, { withCredentials: true });
+      // Use the enhanced AI dashboard endpoint
+      const response = await axios.get(`${API}/analytics/dashboard-with-ai`, { withCredentials: true });
       setDashboardData(response.data);
     } catch (error) {
       console.error('Error fetching dashboard:', error);
+      // Fallback to regular dashboard
+      try {
+        const response = await axios.get(`${API}/analytics/dashboard`, { withCredentials: true });
+        setDashboardData(response.data);
+      } catch (fallbackError) {
+        console.error('Fallback dashboard error:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate total active optimizations
-  const activeOptimizations = Object.values(userStates).filter(
-    state => state.closed_floors && state.closed_floors.length > 0
-  );
-  
-  // Calculate total projected savings from active optimizations
-  const totalProjectedSavings = activeOptimizations.reduce((total, state) => {
-    const closedCount = state.closed_floors?.length || 0;
-    // Rough estimate: ~15000 per floor/month savings
-    return total + (closedCount * 15000);
-  }, 0);
+  // Get active optimizations from dashboard data
+  const activeOptimizations = dashboardData?.active_optimizations?.details || [];
+  const totalRealizedSavings = dashboardData?.active_optimizations?.realized_monthly_savings || 0;
 
   if (loading || stateLoading) {
     return (
@@ -77,6 +78,7 @@ export default function Dashboard() {
 
   const kpis = dashboardData?.kpis || {};
   const optimization = dashboardData?.optimization_potential || {};
+  const propertyMetrics = dashboardData?.property_metrics || [];
 
   // Mock trend data for chart
   const trendData = Array.from({ length: 7 }, (_, i) => ({
@@ -103,6 +105,20 @@ export default function Dashboard() {
     }
   };
 
+  const getRiskBadge = (level) => {
+    switch (level) {
+      case 'HIGH': 
+      case 'CRITICAL':
+        return 'bg-red-500/10 text-red-400 border-red-500/30';
+      case 'MEDIUM':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+      case 'LOW':
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+      default:
+        return 'bg-slate-500/10 text-slate-400 border-slate-500/30';
+    }
+  };
+
   return (
     <div className="space-y-8" data-testid="dashboard">
       {/* Welcome Header */}
@@ -126,11 +142,11 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {/* Active Optimizations Banner */}
+      {/* Active Optimizations Banner with Property Names */}
       {activeOptimizations.length > 0 && (
         <Card className="glass border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 animate-fade-in" data-testid="active-optimizations-banner">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
                   <Activity className="w-5 h-5 text-emerald-400" />
@@ -139,15 +155,20 @@ export default function Dashboard() {
                   <p className="font-semibold text-emerald-400">
                     {activeOptimizations.length} Active Optimization{activeOptimizations.length > 1 ? 's' : ''}
                   </p>
-                  <p className="text-sm text-slate-400">
-                    {Object.values(userStates).reduce((total, state) => total + (state.closed_floors?.length || 0), 0)} floor(s) closed across properties
-                  </p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {activeOptimizations.map((opt, idx) => (
+                      <Badge key={idx} className="bg-emerald-500/20 text-emerald-400 text-xs">
+                        <Lock className="w-3 h-3 mr-1" />
+                        {opt.property_name}: {opt.closed_floors.length} floor(s)
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="text-right">
                 <p className="text-xs text-slate-500 uppercase">Est. Monthly Savings</p>
                 <p className="text-xl font-bold font-mono text-emerald-400">
-                  {formatCurrency(totalProjectedSavings)}
+                  {formatCurrency(totalRealizedSavings)}
                 </p>
               </div>
             </div>
@@ -214,21 +235,21 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Energy Card */}
-        <Card className="glass card-hover metric-card border-white/5 animate-fade-in stagger-4" data-testid="kpi-energy">
+        {/* Carbon Card */}
+        <Card className="glass card-hover metric-card border-white/5 animate-fade-in stagger-4" data-testid="kpi-carbon">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 flex items-center justify-center border border-cyan-500/20">
-                <Zap className="w-6 h-6 text-cyan-400" />
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/10 flex items-center justify-center border border-green-500/20">
+                <Leaf className="w-6 h-6 text-green-400" />
               </div>
               <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">
                 <ArrowDownRight className="w-3 h-3 mr-1" />
                 -5.3%
               </Badge>
             </div>
-            <p className="text-sm text-slate-400 font-medium uppercase tracking-wider">Energy Cost</p>
+            <p className="text-sm text-slate-400 font-medium uppercase tracking-wider">Carbon Emissions</p>
             <p className="text-3xl font-bold text-white font-mono mt-1">
-              <AnimatedCounter value={kpis.total_energy_cost} formatter={formatCurrency} />
+              <AnimatedCounter value={kpis.total_carbon_kg} suffix=" kg" decimals={0} />
             </p>
           </CardContent>
         </Card>
@@ -328,13 +349,104 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Property Risk Analysis Cards */}
+      <Card className="glass border-white/5 animate-fade-in" data-testid="property-risk-analysis">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
+              <Shield className="w-5 h-5 text-amber-400" />
+              Property Risk Analysis
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/portfolio')} className="text-slate-400 hover:text-white">
+              View All
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {propertyMetrics.map((prop) => {
+              const closedFloors = prop.closed_floors || [];
+              const hasOptimization = closedFloors.length > 0;
+              
+              return (
+                <div 
+                  key={prop.property_id}
+                  className="p-5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-cyan-500/20 cursor-pointer transition-all group"
+                  onClick={() => navigate(`/property/${prop.property_id}`)}
+                  data-testid={`property-risk-card-${prop.property_id}`}
+                >
+                  {/* Property Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h4 className="font-semibold text-white group-hover:text-cyan-400 transition-colors flex items-center gap-2">
+                        {prop.name}
+                        {hasOptimization && (
+                          <span className="w-2 h-2 bg-emerald-400 rounded-full" />
+                        )}
+                      </h4>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                        <MapPin className="w-3 h-3" />
+                        {prop.location}
+                      </p>
+                    </div>
+                    <Badge className={`${getRiskBadge(prop.risk_level)} border text-xs`}>
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      {prop.risk_level}
+                    </Badge>
+                  </div>
+
+                  {/* Risk Score & Metrics */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-white/[0.02]">
+                      <p className="text-xs text-slate-500">Risk Score</p>
+                      <p className="text-lg font-mono font-bold text-amber-400">{prop.risk_score}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white/[0.02]">
+                      <p className="text-xs text-slate-500">Efficiency</p>
+                      <p className="text-lg font-mono font-bold text-cyan-400">{prop.efficiency?.toFixed(0)}%</p>
+                    </div>
+                  </div>
+
+                  {/* Top Risks */}
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500 uppercase">Top Risks</p>
+                    {prop.top_risks?.slice(0, 2).map((risk, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-400">{risk.name}</span>
+                        <Badge className={`${getRiskBadge(risk.level?.toUpperCase())} border text-[10px] py-0`}>
+                          {risk.level}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Carbon & Floor Info */}
+                  <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between text-xs">
+                    <span className="text-slate-500">
+                      CO₂: <span className="text-green-400 font-mono">{formatNumber(prop.carbon_kg)} kg</span>
+                      <span className="text-slate-600 ml-1">({prop.carbon_factor} kg/kWh)</span>
+                    </span>
+                    {hasOptimization && (
+                      <span className="text-emerald-400">
+                        {prop.active_floors}/{prop.total_floors} floors
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Property Overview */}
       <Card className="glass border-white/5 animate-fade-in" data-testid="property-overview">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2 text-white">
               <Building2 className="w-5 h-5 text-cyan-400" />
-              Property Overview
+              Property Performance
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={() => navigate('/portfolio')} className="text-slate-400 hover:text-white">
               View All
@@ -344,8 +456,8 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {properties.slice(0, 3).map((prop, idx) => {
-              const closedFloors = getClosedFloors(prop.property_id);
+            {propertyMetrics.slice(0, 3).map((prop, idx) => {
+              const closedFloors = prop.closed_floors || [];
               const hasOptimization = closedFloors.length > 0;
               
               return (
@@ -378,18 +490,18 @@ export default function Dashboard() {
                   <div className="flex items-center gap-8">
                     <div className="text-right">
                       <p className="text-xs text-slate-500 uppercase tracking-wider">Occupancy</p>
-                      <p className={`font-mono font-semibold ${getUtilizationColor(prop.utilization_status)}`}>
-                        {formatPercent(prop.current_occupancy)}
+                      <p className={`font-mono font-semibold ${getUtilizationColor(prop.utilization)}`}>
+                        {formatPercent(prop.occupancy)}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-slate-500 uppercase tracking-wider">Profit</p>
                       <p className="font-mono font-semibold text-emerald-400">
-                        {formatCurrency(prop.current_profit)}
+                        {formatCurrency(prop.profit)}
                       </p>
                     </div>
-                    <Badge className={`${getUtilizationBadge(prop.utilization_status)} border`}>
-                      {prop.utilization_status}
+                    <Badge className={`${getUtilizationBadge(prop.utilization)} border`}>
+                      {prop.utilization}
                     </Badge>
                     <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
                   </div>
