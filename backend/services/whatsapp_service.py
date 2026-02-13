@@ -31,9 +31,9 @@ class MessageTemplates:
     
     @staticmethod
     def welcome() -> str:
-        return """👋 *Welcome to PropTech Copilot!*
+        return """👋 *Welcome to Infranomic Decision Copilot!*
 
-I'm your AI-powered property analytics assistant.
+I'm your AI-powered property analytics assistant with real-time risk analysis and optimization recommendations.
 
 📋 *Quick Commands:*
 • *list* - View all properties
@@ -41,28 +41,65 @@ I'm your AI-powered property analytics assistant.
 • *alerts* - Check active alerts
 • *help* - Show all commands
 
+🔗 *Web Dashboard:* Access full features at your dashboard URL
+
 Reply with a command to get started!"""
 
     @staticmethod
     def help_menu() -> str:
-        return """🤖 *PropTech Copilot - Help Menu*
+        return """🤖 *Infranomic Decision Copilot - Help Menu*
 
-📋 *Available Commands:*
-
-*Property Analytics:*
+━━━━━━━━━━━━━━━━━━
+📋 *PROPERTY ANALYTICS*
+━━━━━━━━━━━━━━━━━━
 • *list* or *properties* - Show all properties
-• *[property name]* - Get property details
-• *overview* - Portfolio summary
+• *[property name]* - Get property details (e.g., "Horizon")
+• *overview* or *summary* - Portfolio executive summary
+• *portfolio* - View all properties with benchmarks
 
-*Alerts & Monitoring:*
+━━━━━━━━━━━━━━━━━━
+🏢 *FLOOR CONTROL*
+━━━━━━━━━━━━━━━━━━
+• *close floor 7 in Horizon* - Close a specific floor
+• *close floors 2,4,5* - Close multiple floors
+• *open floor 3* - Reopen a closed floor
+• *reset Horizon* - Reset property to default state
+• *reset all* - Reset all properties
+
+━━━━━━━━━━━━━━━━━━
+📊 *SIMULATION*
+━━━━━━━━━━━━━━━━━━
+• *simulate closing F3* - Run what-if analysis
+• *what if we close floor 2?* - Scenario simulation
+• *run optimization* - Get optimization suggestions
+
+━━━━━━━━━━━━━━━━━━
+📄 *REPORTS*
+━━━━━━━━━━━━━━━━━━
+• *download PDF* - Get executive summary report
+• *energy report* - Energy savings analysis
+
+━━━━━━━━━━━━━━━━━━
+💡 *AI RECOMMENDATIONS*
+━━━━━━━━━━━━━━━━━━
+• *recommend* or *tips* - Get AI-powered suggestions
+• *advice for Horizon* - Property-specific recommendations
+
+━━━━━━━━━━━━━━━━━━
+🔔 *ALERTS*
+━━━━━━━━━━━━━━━━━━
 • *alerts* - View active alerts
+• *subscribe* - Enable auto-alerts
+• *unsubscribe* - Disable alerts
+
+━━━━━━━━━━━━━━━━━━
+⚙️ *SYSTEM*
+━━━━━━━━━━━━━━━━━━
 • *status* - System status
-
-*Navigation:*
 • *help* - Show this menu
-• *back* - Previous menu
+• *undo* - Revert last change
 
-💡 *Tip:* Just type a property name like "Horizon" to get instant analytics!"""
+💡 *Tip:* Just type a property name to get instant analytics!"""
 
     @staticmethod
     def property_list(properties: List[Dict], format_fn) -> str:
