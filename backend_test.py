@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 
 class PropTechAPITester:
-    def __init__(self, base_url="https://ai-real-estate-4.preview.emergentagent.com"):
+    def __init__(self, base_url="https://proptech-copilot-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_base = f"{base_url}/api"
         self.session_token = "test_session_1770908835253"  # Updated from agent context
