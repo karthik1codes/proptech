@@ -139,9 +139,9 @@ export default function WhatsAppLinking() {
               <MessageCircle className="w-5 h-5 text-green-400" />
             </div>
             <div>
-              <CardTitle className="text-lg text-white">WhatsApp Control</CardTitle>
+              <CardTitle className="text-lg text-white">Infranomic WhatsApp Bot</CardTitle>
               <CardDescription className="text-slate-400">
-                Execute all platform actions via WhatsApp
+                Control your portfolio via WhatsApp messages
               </CardDescription>
             </div>
           </div>
