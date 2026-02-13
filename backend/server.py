@@ -2302,7 +2302,7 @@ async def close_floors(
     request: CloseFloorsRequest,
     user: User = Depends(get_current_user)
 ):
-    """Close specific floors for a property (user-scoped)."""
+    """Close specific floors for a property (user-scoped). Logged to change history."""
     # Validate property exists
     prop = property_store.get_by_id(property_id)
     if not prop:
@@ -2317,7 +2317,13 @@ async def close_floors(
             detail=f"Invalid floor numbers: {invalid_floors}. Property has floors 1-{max_floors}"
         )
     
-    result = await user_state_service.close_floors(user.user_id, property_id, request.floors)
+    result = await user_state_service.close_floors(
+        user.user_id, 
+        property_id, 
+        request.floors,
+        session_id=request.session_id,
+        metadata={"source": "api", "property_name": prop.get("name")}
+    )
     
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to close floors"))
