@@ -204,6 +204,13 @@ TWILIO_WHATSAPP_NUMBER=<number>
 
 ## Changelog
 
+### v1.4.2 (2026-02-13) - Global State Sync Fix
+- Fixed `applyChanges` function in ScenarioSimulator to properly detect changed floors
+- Improved state context to log updates and trigger dashboard refresh
+- Added "Show All Commands" expandable UI in WhatsApp control panel
+- Added calculation breakdown section showing how savings numbers are derived
+- Improved toast messages to clearly indicate when changes need to be applied
+
 ### v1.4.1 (2026-02-13) - Minor Fixes
 - Fixed PDF download filename (PropTech → Infranomic)
 - Fixed table hydration warning in ExecutiveSummary
