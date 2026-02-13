@@ -145,22 +145,42 @@ export default function ScenarioSimulator() {
     try {
       const currentSavedFloors = getClosedFloors(selectedProperty.property_id);
       
+      // Check if anything actually changed
+      const currentSet = new Set(currentSavedFloors);
+      const newSet = new Set(floorsToClose);
+      const hasChanges = currentSavedFloors.length !== floorsToClose.length || 
+                        !currentSavedFloors.every(f => newSet.has(f));
+      
+      if (!hasChanges) {
+        toast.info('No changes to apply');
+        setSaving(false);
+        return;
+      }
+      
       // Determine floors to close and open
-      const floorsToCloseNew = floorsToClose.filter(f => !currentSavedFloors.includes(f));
-      const floorsToOpen = currentSavedFloors.filter(f => !floorsToClose.includes(f));
+      const floorsToCloseNew = floorsToClose.filter(f => !currentSet.has(f));
+      const floorsToOpenList = currentSavedFloors.filter(f => !newSet.has(f));
+      
+      let success = true;
       
       // Close new floors
       if (floorsToCloseNew.length > 0) {
-        await closeFloors(selectedProperty.property_id, floorsToCloseNew);
+        const result = await closeFloors(selectedProperty.property_id, floorsToCloseNew);
+        if (!result?.success) success = false;
       }
       
       // Open removed floors
-      if (floorsToOpen.length > 0) {
-        await openFloors(selectedProperty.property_id, floorsToOpen);
+      if (floorsToOpenList.length > 0) {
+        const result = await openFloors(selectedProperty.property_id, floorsToOpenList);
+        if (!result?.success) success = false;
       }
       
-      setHasUnsavedChanges(false);
-      toast.success('Changes applied successfully! This will reflect across all pages.');
+      if (success) {
+        setHasUnsavedChanges(false);
+        toast.success('Changes applied! Dashboard and other pages will now reflect these optimizations.');
+      } else {
+        toast.error('Some changes may not have been applied. Please refresh and try again.');
+      }
     } catch (error) {
       console.error('Error applying changes:', error);
       toast.error('Failed to apply changes');
