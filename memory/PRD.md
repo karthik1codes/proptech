@@ -144,6 +144,44 @@ Enhanced dashboard with per-property:
 - **Webhook URL**: `{BACKEND_URL}/api/whatsapp/webhook`
 - Configure this in Twilio Console → WhatsApp Sandbox → Webhook URL
 
+#### WhatsApp Bot Commands
+
+**Property Analytics:**
+- `list` or `properties` - Show all properties
+- `[property name]` (e.g., "Horizon") - Get property details
+- `overview` or `summary` - Portfolio executive summary
+- `portfolio` - View all properties with benchmarks
+
+**Floor Control:**
+- `close floor 7 in Horizon` - Close a specific floor
+- `close floors 2,4,5` - Close multiple floors
+- `open floor 3` - Reopen a closed floor
+- `reset Horizon` - Reset property to default
+- `reset all` - Reset all properties
+
+**Simulation:**
+- `simulate closing F3` - Run what-if analysis
+- `what if we close floor 2?` - Scenario simulation
+- `run optimization` - Get optimization suggestions
+
+**Reports:**
+- `download PDF` - Get executive summary report
+- `energy report` - Energy savings analysis
+
+**AI Recommendations:**
+- `recommend` or `tips` - Get AI-powered suggestions
+- `advice for Horizon` - Property-specific recommendations
+
+**Alerts:**
+- `alerts` - View active alerts
+- `subscribe` - Enable auto-alerts
+- `unsubscribe` - Disable alerts
+
+**System:**
+- `status` - System status
+- `help` - Show all commands
+- `undo` - Revert last change
+
 ### Change Logging
 - Audit trail in user_change_log collection
 - Session tracking
