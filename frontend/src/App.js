@@ -9,6 +9,7 @@ import PropertyDetail from './pages/PropertyDetail';
 import ScenarioSimulator from './pages/ScenarioSimulator';
 import ExecutiveSummary from './pages/ExecutiveSummary';
 import Layout from './components/Layout';
+import { PropertyStateProvider } from './context/PropertyStateContext';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
