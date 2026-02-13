@@ -49,7 +49,7 @@ def get_location_key(location: str) -> str:
 
 class PDFReportGenerator:
     """
-    Generates PDF reports for PropTech analytics.
+    Generates PDF reports for Infranomic analytics.
     Supports property reports, executive summaries, and energy reports.
     """
     
