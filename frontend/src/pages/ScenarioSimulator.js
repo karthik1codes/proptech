@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Building2, Zap, TrendingUp, TrendingDown, Leaf, 
-  AlertTriangle, Target, RefreshCw, ChevronRight
+  AlertTriangle, Target, RefreshCw, ChevronRight, Save, RotateCcw, Clock
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -15,48 +15,94 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { API } from '../App';
 import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters';
 import { toast } from 'sonner';
+import { usePropertyState } from '../context/PropertyStateContext';
 
 export default function ScenarioSimulator() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [properties, setProperties] = useState([]);
+  
+  // Use global state context
+  const { 
+    properties, 
+    getClosedFloors, 
+    closeFloors, 
+    openFloors, 
+    resetProperty,
+    lastUpdate 
+  } = usePropertyState();
+  
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [simulating, setSimulating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [simulation, setSimulation] = useState(null);
 
-  // Simulation parameters
+  // Simulation parameters - these track the UI state
   const [floorsToClose, setFloorsToClose] = useState([]);
   const [hybridIntensity, setHybridIntensity] = useState(1.0);
   const [targetOccupancy, setTargetOccupancy] = useState(null);
   const [useCustomOccupancy, setUseCustomOccupancy] = useState(false);
+  
+  // Track if we have unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
-    fetchProperties();
-  }, []);
-
-  useEffect(() => {
-    const propId = searchParams.get('property');
-    if (propId && properties.length > 0) {
-      const prop = properties.find(p => p.property_id === propId);
-      if (prop) {
-        setSelectedProperty(prop);
+    if (properties.length > 0) {
+      setLoading(false);
+      const propId = searchParams.get('property');
+      if (propId) {
+        const prop = properties.find(p => p.property_id === propId);
+        if (prop) {
+          selectProperty(prop);
+        }
+      } else if (!selectedProperty) {
+        selectProperty(properties[0]);
       }
     }
-  }, [searchParams, properties]);
+  }, [properties, searchParams]);
 
-  const fetchProperties = async () => {
-    try {
-      const response = await axios.get(`${API}/properties`, { withCredentials: true });
-      setProperties(response.data);
-      if (response.data.length > 0 && !searchParams.get('property')) {
-        setSelectedProperty(response.data[0]);
+  // When property changes, sync with global state
+  useEffect(() => {
+    if (selectedProperty) {
+      const savedClosedFloors = getClosedFloors(selectedProperty.property_id);
+      setFloorsToClose(savedClosedFloors);
+      // Auto-run simulation if there are closed floors
+      if (savedClosedFloors.length > 0) {
+        runSimulationWithFloors(savedClosedFloors);
       }
+    }
+  }, [selectedProperty?.property_id, lastUpdate]);
+
+  const selectProperty = (prop) => {
+    setSelectedProperty(prop);
+    const savedClosedFloors = getClosedFloors(prop.property_id);
+    setFloorsToClose(savedClosedFloors);
+    setSimulation(null);
+    setHasUnsavedChanges(false);
+    
+    // Auto-run simulation if floors were previously closed
+    if (savedClosedFloors.length > 0) {
+      runSimulationWithFloors(savedClosedFloors, prop);
+    }
+  };
+
+  const runSimulationWithFloors = async (floors, prop = selectedProperty) => {
+    if (!prop) return;
+    
+    setSimulating(true);
+    try {
+      const response = await axios.post(`${API}/analytics/simulate-floor-closure`, {
+        property_id: prop.property_id,
+        floors_to_close: floors,
+        hybrid_intensity: hybridIntensity,
+        target_occupancy: useCustomOccupancy ? targetOccupancy : null,
+      }, { withCredentials: true });
+      
+      setSimulation(response.data);
     } catch (error) {
-      console.error('Error fetching properties:', error);
-      toast.error('Failed to load properties');
+      console.error('Error running simulation:', error);
     } finally {
-      setLoading(false);
+      setSimulating(false);
     }
   };
 
@@ -83,11 +129,62 @@ export default function ScenarioSimulator() {
   };
 
   const toggleFloor = (floorNum) => {
-    setFloorsToClose(prev => 
-      prev.includes(floorNum) 
-        ? prev.filter(f => f !== floorNum)
-        : [...prev, floorNum]
-    );
+    const newFloors = floorsToClose.includes(floorNum)
+      ? floorsToClose.filter(f => f !== floorNum)
+      : [...floorsToClose, floorNum];
+    
+    setFloorsToClose(newFloors);
+    setHasUnsavedChanges(true);
+  };
+
+  // Apply changes - saves to global state and backend
+  const applyChanges = async () => {
+    if (!selectedProperty) return;
+    
+    setSaving(true);
+    try {
+      const currentSavedFloors = getClosedFloors(selectedProperty.property_id);
+      
+      // Determine floors to close and open
+      const floorsToCloseNew = floorsToClose.filter(f => !currentSavedFloors.includes(f));
+      const floorsToOpen = currentSavedFloors.filter(f => !floorsToClose.includes(f));
+      
+      // Close new floors
+      if (floorsToCloseNew.length > 0) {
+        await closeFloors(selectedProperty.property_id, floorsToCloseNew);
+      }
+      
+      // Open removed floors
+      if (floorsToOpen.length > 0) {
+        await openFloors(selectedProperty.property_id, floorsToOpen);
+      }
+      
+      setHasUnsavedChanges(false);
+      toast.success('Changes applied successfully! This will reflect across all pages.');
+    } catch (error) {
+      console.error('Error applying changes:', error);
+      toast.error('Failed to apply changes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Reset to default
+  const handleReset = async () => {
+    if (!selectedProperty) return;
+    
+    setSaving(true);
+    try {
+      await resetProperty(selectedProperty.property_id);
+      setFloorsToClose([]);
+      setSimulation(null);
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Error resetting:', error);
+      toast.error('Failed to reset');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -102,6 +199,9 @@ export default function ScenarioSimulator() {
     );
   }
 
+  const savedClosedFloors = selectedProperty ? getClosedFloors(selectedProperty.property_id) : [];
+  const hasActiveOptimizations = savedClosedFloors.length > 0;
+
   return (
     <div className="space-y-6" data-testid="scenario-simulator">
       {/* Header */}
@@ -115,6 +215,16 @@ export default function ScenarioSimulator() {
             Simulate floor closures and optimize your property operations
           </p>
         </div>
+        
+        {/* Active Optimizations Indicator */}
+        {hasActiveOptimizations && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+            <span className="text-sm text-emerald-400">
+              <strong>{savedClosedFloors.length}</strong> floor(s) actively closed
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -131,9 +241,7 @@ export default function ScenarioSimulator() {
                 value={selectedProperty?.property_id || ''}
                 onValueChange={(v) => {
                   const prop = properties.find(p => p.property_id === v);
-                  setSelectedProperty(prop);
-                  setFloorsToClose([]);
-                  setSimulation(null);
+                  selectProperty(prop);
                 }}
               >
                 <SelectTrigger data-testid="property-select">
@@ -143,6 +251,11 @@ export default function ScenarioSimulator() {
                   {properties.map(prop => (
                     <SelectItem key={prop.property_id} value={prop.property_id}>
                       {prop.name}
+                      {getClosedFloors(prop.property_id).length > 0 && (
+                        <Badge className="ml-2 bg-emerald-500/20 text-emerald-400 text-xs">
+                          {getClosedFloors(prop.property_id).length} optimized
+                        </Badge>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -155,23 +268,34 @@ export default function ScenarioSimulator() {
                 <div className="space-y-3">
                   <Label>Select Floors to Close</Label>
                   <div className="grid grid-cols-4 gap-2">
-                    {Array.from({ length: selectedProperty.floors }, (_, i) => i + 1).map(floorNum => (
-                      <button
-                        key={floorNum}
-                        onClick={() => toggleFloor(floorNum)}
-                        className={`h-10 rounded-lg font-mono text-sm font-medium transition-all ${
-                          floorsToClose.includes(floorNum)
-                            ? 'bg-red-500/20 border-2 border-red-500 text-red-400'
-                            : 'bg-zinc-800 border border-border hover:border-blue-500/50'
-                        }`}
-                        data-testid={`floor-toggle-${floorNum}`}
-                      >
-                        F{floorNum}
-                      </button>
-                    ))}
+                    {Array.from({ length: selectedProperty.floors }, (_, i) => i + 1).map(floorNum => {
+                      const isSelected = floorsToClose.includes(floorNum);
+                      const wasSaved = savedClosedFloors.includes(floorNum);
+                      
+                      return (
+                        <button
+                          key={floorNum}
+                          onClick={() => toggleFloor(floorNum)}
+                          className={`h-10 rounded-lg font-mono text-sm font-medium transition-all relative ${
+                            isSelected
+                              ? 'bg-red-500/20 border-2 border-red-500 text-red-400'
+                              : 'bg-zinc-800 border border-border hover:border-blue-500/50'
+                          }`}
+                          data-testid={`floor-toggle-${floorNum}`}
+                        >
+                          F{floorNum}
+                          {wasSaved && !isSelected && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full" title="Previously closed" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {floorsToClose.length} floor(s) selected for closure
+                    {hasUnsavedChanges && (
+                      <span className="text-amber-400 ml-2">(unsaved changes)</span>
+                    )}
                   </p>
                 </div>
 
@@ -221,25 +345,64 @@ export default function ScenarioSimulator() {
                   )}
                 </div>
 
-                {/* Run Simulation */}
-                <Button 
-                  onClick={runSimulation}
-                  disabled={simulating}
-                  className="w-full bg-blue-600 hover:bg-blue-500 glow-blue"
-                  data-testid="run-simulation-btn"
-                >
-                  {simulating ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Simulating...
-                    </>
-                  ) : (
-                    <>
-                      <Target className="w-4 h-4 mr-2" />
-                      Run Simulation
-                    </>
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  {/* Run Simulation */}
+                  <Button 
+                    onClick={runSimulation}
+                    disabled={simulating}
+                    className="w-full bg-blue-600 hover:bg-blue-500 glow-blue"
+                    data-testid="run-simulation-btn"
+                  >
+                    {simulating ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Simulating...
+                      </>
+                    ) : (
+                      <>
+                        <Target className="w-4 h-4 mr-2" />
+                        Run Simulation
+                      </>
+                    )}
+                  </Button>
+                  
+                  {/* Apply Changes - Save to Global State */}
+                  {simulation && (
+                    <Button 
+                      onClick={applyChanges}
+                      disabled={saving || !hasUnsavedChanges}
+                      className="w-full bg-emerald-600 hover:bg-emerald-500"
+                      data-testid="apply-changes-btn"
+                    >
+                      {saving ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          Apply Changes Globally
+                        </>
+                      )}
+                    </Button>
                   )}
-                </Button>
+                  
+                  {/* Reset */}
+                  {hasActiveOptimizations && (
+                    <Button 
+                      onClick={handleReset}
+                      disabled={saving}
+                      variant="outline"
+                      className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10"
+                      data-testid="reset-btn"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Reset to Default
+                    </Button>
+                  )}
+                </div>
               </>
             )}
           </CardContent>
@@ -252,10 +415,18 @@ export default function ScenarioSimulator() {
               {/* Savings Summary */}
               <Card className="glass glow-blue" data-testid="savings-summary">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-emerald-400" />
-                    Projected Savings
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-emerald-400" />
+                      Projected Savings
+                    </CardTitle>
+                    {hasActiveOptimizations && (
+                      <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <Clock className="w-3 h-3 mr-1" />
+                        Active
+                      </Badge>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
