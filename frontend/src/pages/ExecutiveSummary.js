@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   BarChart3, TrendingUp, Leaf, Building2, 
-  Crown, Medal, Award, ChevronRight, Download, Loader2, FileText
+  Crown, Medal, Award, ChevronRight, Download, Loader2, FileText, Activity, Lock
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -11,6 +11,7 @@ import { API } from '../App';
 import { formatCurrency, formatPercent, formatNumber, formatLakhs } from '../utils/formatters';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { usePropertyState } from '../context/PropertyStateContext';
 
 export default function ExecutiveSummary() {
   const navigate = useNavigate();
@@ -19,9 +20,17 @@ export default function ExecutiveSummary() {
   const [benchmarks, setBenchmarks] = useState([]);
   const [downloading, setDownloading] = useState(false);
 
+  // Use global state context
+  const { 
+    properties, 
+    userStates, 
+    getClosedFloors,
+    lastUpdate 
+  } = usePropertyState();
+
   useEffect(() => {
     fetchExecutiveData();
-  }, []);
+  }, [lastUpdate]); // Refetch when global state changes
 
   const fetchExecutiveData = async () => {
     try {
@@ -84,6 +93,18 @@ export default function ExecutiveSummary() {
     }
   };
 
+  // Calculate active optimizations summary
+  const activeOptimizations = Object.values(userStates).filter(
+    state => state.closed_floors && state.closed_floors.length > 0
+  );
+  
+  const totalClosedFloors = Object.values(userStates).reduce(
+    (total, state) => total + (state.closed_floors?.length || 0), 0
+  );
+
+  // Estimate realized savings from active optimizations
+  const realizedSavings = totalClosedFloors * 15000; // ~15k per floor/month
+
   if (loading) {
     return (
       <div className="space-y-6" data-testid="executive-loading">
@@ -139,6 +160,38 @@ export default function ExecutiveSummary() {
         </div>
       </div>
 
+      {/* Active Optimizations Summary */}
+      {activeOptimizations.length > 0 && (
+        <Card className="glass border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 to-cyan-500/5" data-testid="active-optimizations">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-emerald-400 flex items-center gap-2">
+                    Active Optimizations
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                      {activeOptimizations.length} properties
+                    </Badge>
+                  </p>
+                  <p className="text-sm text-slate-400">
+                    {totalClosedFloors} floor(s) currently closed - savings reflected below
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-500 uppercase">Realized Monthly Savings</p>
+                <p className="text-2xl font-bold font-mono text-emerald-400">
+                  {formatCurrency(realizedSavings)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="glass glow-blue" data-testid="kpi-monthly-savings">
@@ -152,6 +205,11 @@ export default function ExecutiveSummary() {
             <p className="text-3xl font-bold font-mono text-emerald-400 mt-1">
               {formatLakhs(executiveData?.total_projected_monthly_savings)}
             </p>
+            {realizedSavings > 0 && (
+              <p className="text-xs text-emerald-500 mt-1">
+                {formatCurrency(realizedSavings)} currently realized
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -202,6 +260,14 @@ export default function ExecutiveSummary() {
       <Card className="glass border-blue-500/30" data-testid="executive-insight">
         <CardContent className="p-6">
           <p className="text-lg leading-relaxed">{executiveData?.executive_insight}</p>
+          {activeOptimizations.length > 0 && (
+            <div className="mt-4 p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+              <p className="text-sm text-emerald-400">
+                <strong>Active:</strong> You have {activeOptimizations.length} property optimization(s) in effect, 
+                with {totalClosedFloors} floor(s) closed. These changes are reflected in your analytics.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -215,27 +281,40 @@ export default function ExecutiveSummary() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {executiveData?.top_strategic_actions?.map((action, idx) => (
-              <div 
-                key={idx}
-                className="flex items-center justify-between p-4 rounded-xl bg-zinc-900/50 hover:bg-zinc-800/50 cursor-pointer transition-colors"
-                onClick={() => navigate(`/portfolio`)}
-              >
-                <div className="flex items-center gap-4">
-                  <span className={getRankBadge(idx + 1)}>{idx + 1}</span>
-                  <div>
-                    <p className="font-semibold">{action.property_name}</p>
-                    <p className="text-sm text-muted-foreground">{action.action}</p>
+            {executiveData?.top_strategic_actions?.map((action, idx) => {
+              const propState = userStates[properties.find(p => p.name === action.property_name)?.property_id];
+              const hasOptimization = propState?.closed_floors?.length > 0;
+              
+              return (
+                <div 
+                  key={idx}
+                  className="flex items-center justify-between p-4 rounded-xl bg-zinc-900/50 hover:bg-zinc-800/50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/simulator`)}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className={getRankBadge(idx + 1)}>{idx + 1}</span>
+                    <div>
+                      <p className="font-semibold flex items-center gap-2">
+                        {action.property_name}
+                        {hasOptimization && (
+                          <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs">
+                            <Lock className="w-3 h-3 mr-1" />
+                            Optimized
+                          </Badge>
+                        )}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{action.action}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="outline" className="mb-1">{action.type}</Badge>
+                    <p className="font-mono text-emerald-400 font-semibold">
+                      {formatCurrency(action.impact)}
+                    </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <Badge variant="outline" className="mb-1">{action.type}</Badge>
-                  <p className="font-mono text-emerald-400 font-semibold">
-                    {formatCurrency(action.impact)}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -258,51 +337,72 @@ export default function ExecutiveSummary() {
                   <th className="pb-3 px-4 text-center">Energy Rank</th>
                   <th className="pb-3 px-4 text-center">Sustainability</th>
                   <th className="pb-3 px-4 text-center">Carbon Rank</th>
+                  <th className="pb-3 px-4 text-center">Status</th>
                   <th className="pb-3 pl-4 text-right">Occupancy</th>
                 </tr>
               </thead>
               <tbody>
-                {benchmarks.map((b) => (
-                  <tr 
-                    key={b.property_id}
-                    className="border-b border-border/50 hover:bg-zinc-900/50 cursor-pointer"
-                    onClick={() => navigate(`/property/${b.property_id}`)}
-                  >
-                    <td className="py-4 pr-4">
-                      <div>
-                        <p className="font-semibold">{b.name}</p>
-                        <p className="text-xs text-muted-foreground">{b.location}</p>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-center gap-2">
-                        {getRankIcon(b.profit_rank)}
-                        <span className={getRankBadge(b.profit_rank)}>{b.profit_rank}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-center gap-2">
-                        {getRankIcon(b.energy_efficiency_rank)}
-                        <span className={getRankBadge(b.energy_efficiency_rank)}>{b.energy_efficiency_rank}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-center gap-2">
-                        {getRankIcon(b.sustainability_score_rank)}
-                        <span className={getRankBadge(b.sustainability_score_rank)}>{b.sustainability_score_rank}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-center gap-2">
-                        {getRankIcon(b.carbon_rank)}
-                        <span className={getRankBadge(b.carbon_rank)}>{b.carbon_rank}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 pl-4 text-right">
-                      <span className="font-mono">{formatPercent(b.occupancy_rate)}</span>
-                    </td>
-                  </tr>
-                ))}
+                {benchmarks.map((b) => {
+                  const closedFloors = getClosedFloors(b.property_id);
+                  const hasOptimization = closedFloors.length > 0;
+                  
+                  return (
+                    <tr 
+                      key={b.property_id}
+                      className="border-b border-border/50 hover:bg-zinc-900/50 cursor-pointer"
+                      onClick={() => navigate(`/property/${b.property_id}`)}
+                    >
+                      <td className="py-4 pr-4">
+                        <div>
+                          <p className="font-semibold flex items-center gap-2">
+                            {b.name}
+                            {hasOptimization && (
+                              <span className="w-2 h-2 bg-emerald-400 rounded-full" title={`${closedFloors.length} floor(s) closed`} />
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{b.location}</p>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center justify-center gap-2">
+                          {getRankIcon(b.profit_rank)}
+                          <span className={getRankBadge(b.profit_rank)}>{b.profit_rank}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center justify-center gap-2">
+                          {getRankIcon(b.energy_efficiency_rank)}
+                          <span className={getRankBadge(b.energy_efficiency_rank)}>{b.energy_efficiency_rank}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center justify-center gap-2">
+                          {getRankIcon(b.sustainability_score_rank)}
+                          <span className={getRankBadge(b.sustainability_score_rank)}>{b.sustainability_score_rank}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center justify-center gap-2">
+                          {getRankIcon(b.carbon_rank)}
+                          <span className={getRankBadge(b.carbon_rank)}>{b.carbon_rank}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        {hasOptimization ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs">
+                            <Lock className="w-3 h-3 mr-1" />
+                            {closedFloors.length} closed
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-slate-500">Default</span>
+                        )}
+                      </td>
+                      <td className="py-4 pl-4 text-right">
+                        <span className="font-mono">{formatPercent(b.occupancy_rate)}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
