@@ -4,7 +4,7 @@ import axios from 'axios';
 import { 
   Building2, ArrowLeft, Zap, Users, TrendingUp, 
   DollarSign, Leaf, BarChart3, Lightbulb, Target,
-  ChevronRight, AlertTriangle
+  ChevronRight, AlertTriangle, Activity, Lock
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -15,6 +15,7 @@ import { API } from '../App';
 import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters';
 import FloorPlanVisualization from '../components/FloorPlanVisualization';
 import EnergySavingsChart from '../components/EnergySavingsChart';
+import { usePropertyState } from '../context/PropertyStateContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { toast } from 'sonner';
 
